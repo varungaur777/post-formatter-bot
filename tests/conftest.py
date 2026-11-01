@@ -36,6 +36,7 @@ class FakeBot:
         self.fail: dict[str, list[BaseException]] = defaultdict(list)
         self._next = 1000
         self.defaults = None
+        self.username = "TestBot"
 
     def _record(self, name: str, kw: dict) -> None:
         self.calls.append((name, kw))

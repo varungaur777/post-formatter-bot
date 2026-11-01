@@ -8,15 +8,18 @@ usi chat mein bhejta hai (owner ka DM ya aapka group), aap use @Priyanshipostbot
 
 ## Kaise use karein
 
-1. Group mein (ya owner apne DM mein) raw content bhejo – sirf text, ya photo + text.
+1. Group mein (ya owner apne DM mein) **`/format`** lagakar content bhejo. Bina `/format` ke bot kuch nahi karta.
+   - `/format` aur uske aage post ka text
+   - kisi message/photo par **reply** karke `/format` (aage extra text bhi likh sakte ho)
+   - photo ke caption mein `/format ...`
 2. Style chuno: **🔥 Spitting style** ya **🌍 GeoSight style**.
 3. Bot formatted post ka preview bhejega. Neeche buttons:
    - 🔁 **Regenerate text** – naya version likhta hai
-   - ✏️ **Edit** – aap likh kar batao kya badalna hai (jaise "headline chhoti karo")
+   - ✏️ **Edit** – aap likh kar batao kya badalna hai (jaise "headline chhoti karo") – iske liye `/format` nahi lagana
    - ✅ **Done** – final post (photo + caption, ya text) usi chat mein aa jayegi
 4. Final post ko **@Priyanshipostbot** ko forward kar do. Footer / "Join" line woh bot khud lagata hai.
 
-Commands: `/start` `/help` `/cancel` (edit cancel) `/id` (apna user ID, group mein group ka chat ID bhi).
+Commands: `/format` `/start` `/help` `/cancel` (edit cancel) `/id` (apna user ID, group mein group ka chat ID bhi).
 
 **Kaun use kar sakta hai:**
 - **DM mein sirf owner** (`OWNER_ID`). Koi aur DM kare to bot sirf mana karta hai aur uska user ID dikha deta hai.
@@ -25,12 +28,13 @@ Commands: `/start` `/help` `/cancel` (edit cancel) `/id` (apna user ID, group me
 - Preview ke buttons sirf wahi daba sakta hai jisne woh content bheja tha.
 
 **Group setup:**
-1. Bot ko group mein add karo aur **admin bana do** (warna bot group ke normal messages dekh nahi pata).
+1. Bot ko group mein add karo aur **admin bana do** (`/format` bina admin ke bhi chalta hai, par ✏️ Edit ke
+   baad wala normal message bot tabhi dekh pata hai jab woh admin ho).
    Ya @BotFather → `/setprivacy` → bot chuno → **Disable**.
 2. Group mein `/id` bhejo – bot group ka chat ID batayega (jaise `-1001234567890`).
 3. Woh ID `GROUP_CHAT_ID` secret mein daal do (neeche dekho). Bot restart hote hi group mein kaam karega.
 
-Tip: is kaam ke liye alag group rakho – group ke har text/photo message par bot style ke buttons bhejta hai.
+Bot sirf `/format` wale messages par kaam karta hai, baaki group chat ko ignore karta hai.
 
 ## Styles
 

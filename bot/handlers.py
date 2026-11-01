@@ -1,5 +1,5 @@
-"""Telegram side: content in (owner DM or the allowed group) -> style buttons -> Claude -> preview with
-buttons -> final post in the same chat.
+"""Telegram side: /format + content (owner DM or the allowed group) -> style buttons -> Claude -> preview with
+buttons -> final post in the same chat. Messages without /format are ignored, except the edit instruction.
 
 Draft document (collection ``drafts``):
   {_id, user_id, chat_id, raw_text, photo_file_id, style, text, preview_msg_id,
@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import contextlib
 import logging
+import re
 import secrets
 from typing import Any
 
@@ -29,6 +30,19 @@ from bot.utils import CAPTION_LIMIT, TEXT_LIMIT, h, utcnow
 
 log = logging.getLogger(__name__)
 TEXT_TARGET = TEXT_LIMIT - 96  # leave room: the posting bot adds its own footer
+
+
+_FORMAT = re.compile(r"^\s*/format(?:@(\w+))?(?=\s|$)", re.IGNORECASE)
+
+
+def parse_format(text: str | None, bot_username: str | None) -> str | None:
+    """'/format some text' -> 'some text'; None if the text is not a /format command (for this bot)."""
+    m = _FORMAT.match(text or "")
+    if m is None:
+        return None
+    if m.group(1) and bot_username and m.group(1).lower() != bot_username.lower():
+        return None  # /format@some_other_bot
+    return (text or "")[m.end():].strip()
 
 
 def style_keyboard(draft_id: str) -> InlineKeyboardMarkup:
@@ -54,7 +68,6 @@ class Formatter:
         self.bot = bot
         self.ai = ai
         self.busy: set[str] = set()
-        self.albums_seen: dict[str, None] = {}
 
     # ---- helpers -----------------------------------------------------------------------------
     @staticmethod
@@ -109,32 +122,38 @@ class Formatter:
                 await self.bot.delete_message(chat_id=chat_id, message_id=msg.message_id)
 
     # ---- incoming content --------------------------------------------------------------------
-    async def on_content(self, msg: Message) -> None:
-        uid = msg.from_user.id
-        editing = await self.db.drafts.find_one({"user_id": uid, "chat_id": msg.chat_id, "awaiting_edit": True},
-                                                sort=[("updated_at", -1)])
-        if editing is not None and msg.text:
-            await self.apply_edit(editing, msg.text)
-            return
+    async def on_text(self, msg: Message) -> bool:
+        """A plain message (no /format): used only as the edit instruction for a draft. True if used."""
+        if not msg.text:
+            return False
+        editing = await self.db.drafts.find_one(
+            {"user_id": msg.from_user.id, "chat_id": msg.chat_id, "awaiting_edit": True}, sort=[("updated_at", -1)])
+        if editing is None:
+            return False
+        await self.apply_edit(editing, msg.text)
+        return True
 
-        if msg.media_group_id:
-            if msg.media_group_id in self.albums_seen:
-                return
-            self.albums_seen[msg.media_group_id] = None
-            while len(self.albums_seen) > 200:
-                self.albums_seen.pop(next(iter(self.albums_seen)))
-            await msg.reply_text(texts.ALBUM_FIRST_ONLY)
-
-        raw = msg.text or msg.caption or ""
-        photo_id = msg.photo[-1].file_id if msg.photo else None
+    async def on_format(self, msg: Message, extra: str) -> None:
+        """/format: the content is the text after the command, or the message it replies to (plus that text)."""
+        source = msg.reply_to_message
+        if source is not None and (source.text or source.caption or source.photo):
+            raw = source.text or source.caption or ""
+            if source.text and source.text.lstrip().lower().startswith("/format"):
+                raw = parse_format(source.text, None) or ""
+            if extra:
+                raw = f"{raw}\n\n{extra}".strip()
+            photo_id = source.photo[-1].file_id if source.photo else None
+        else:
+            raw = extra
+            photo_id = msg.photo[-1].file_id if msg.photo else None
         if not raw.strip() and not photo_id:
-            await msg.reply_text(texts.UNSUPPORTED, parse_mode=ParseMode.HTML)
+            await msg.reply_text(texts.FORMAT_USAGE, parse_mode=ParseMode.HTML)
             return
         draft_id = secrets.token_hex(5)
         now = utcnow()
         await self.db.drafts.insert_one({
-            "_id": draft_id, "user_id": uid, "chat_id": msg.chat_id, "raw_text": raw, "photo_file_id": photo_id,
-            "style": None, "text": None, "preview_msg_id": None, "awaiting_edit": False,
+            "_id": draft_id, "user_id": msg.from_user.id, "chat_id": msg.chat_id, "raw_text": raw,
+            "photo_file_id": photo_id, "style": None, "text": None, "preview_msg_id": None, "awaiting_edit": False,
             "status": "new", "created_at": now, "updated_at": now,
         })
         await msg.reply_text(texts.CHOOSE_STYLE, reply_markup=style_keyboard(draft_id))
@@ -257,15 +276,22 @@ def register(app: Application, cfg: Config, fmt: Formatter, access: Access) -> N
         done = await fmt.cancel_edit(update.effective_user.id)
         await update.effective_message.reply_text(texts.EDIT_CANCELLED if done else texts.NOTHING_TO_CANCEL)
 
-    async def content(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-        if not await guard(update):
+    async def format_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+        msg = update.effective_message
+        extra = parse_format(msg.text or msg.caption, msg.get_bot().username)
+        if extra is None or not await guard(update):
             return
-        await fmt.on_content(update.effective_message)
+        await fmt.on_format(msg, extra)
 
-    async def unsupported(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    async def plain(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+        """Messages without /format: only edit instructions. In the group everything else is ignored."""
         if not await guard(update):
             return
-        await update.effective_message.reply_text(texts.UNSUPPORTED, parse_mode=ParseMode.HTML)
+        msg = update.effective_message
+        if await fmt.on_text(msg):
+            return
+        if update.effective_chat.type == update.effective_chat.PRIVATE:
+            await msg.reply_text(texts.FORMAT_HINT, parse_mode=ParseMode.HTML)
 
     async def button(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         if not await guard(update):
@@ -275,8 +301,7 @@ def register(app: Application, cfg: Config, fmt: Formatter, access: Access) -> N
     app.add_handler(CommandHandler(["start", "help"], start, filters=where))
     app.add_handler(CommandHandler("id", my_id))
     app.add_handler(CommandHandler("cancel", cancel, filters=where))
-    app.add_handler(MessageHandler(where & (filters.TEXT & ~filters.COMMAND | filters.PHOTO), content))
-    # stickers / videos etc.: answer in DMs only, a group chat stays quiet
-    app.add_handler(MessageHandler(filters.ChatType.PRIVATE & ~filters.COMMAND & ~filters.StatusUpdate.ALL,
-                                   unsupported))
+    is_format = filters.Regex(_FORMAT) | filters.CaptionRegex(_FORMAT)
+    app.add_handler(MessageHandler(where & is_format, format_cmd))
+    app.add_handler(MessageHandler(where & ~filters.COMMAND & ~filters.StatusUpdate.ALL, plain))
     app.add_handler(CallbackQueryHandler(button))
