@@ -8,14 +8,8 @@ BOT_COMMANDS = [
 ]
 
 HELP = (
-    "👋 <b>Post Formatter Bot</b>\n\n"
-    "1️⃣ Post ka raw content bhejiye – sirf text, ya photo + text.\n"
-    "2️⃣ Style chuniye: <b>Spitting</b> ya <b>GeoSight</b>.\n"
-    "3️⃣ Main Claude AI se post format karke preview bhejunga.\n"
-    "4️⃣ Neeche buttons: 🔁 dobara likho, ✏️ badlav batao, ✅ Done.\n"
-    "5️⃣ ✅ Done ke baad final post aayegi – use <b>@Priyanshipostbot</b> ko forward kar dijiye.\n"
-    "🔒 Buttons sirf wahi daba sakta hai jisne content bheja.\n\n"
-    "ℹ️ Footer / Join line main nahi lagata – woh posting bot khud lagata hai."
+    "Post bhejo (text ya photo + text) → style chuno → ✅ Done → final post "
+    "<b>@Priyanshipostbot</b> ko forward karo."
 )
 NOT_ALLOWED = (
     "⛔ DM mein ye bot sirf owner use kar sakta hai.\n"
