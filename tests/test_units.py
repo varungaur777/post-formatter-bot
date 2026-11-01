@@ -12,7 +12,7 @@ from bot.access import Access
 from bot.ai import AIError, PostAI, clean_output
 from bot.config import ConfigError, load_config
 from bot.lease import Lease
-from bot.styles import GEOSIGHT, SPITTING, load_examples, system_prompt
+from bot.styles import POST, load_examples, system_prompt
 from bot.utils import RedactFilter
 from tests.conftest import ADMIN, GROUP, OWNER, STRANGER, make_config
 
@@ -52,22 +52,22 @@ def test_config_refuses_old_bots_database():
 
 # ---- styles --------------------------------------------------------------------------------------
 def test_load_examples(tmp_path):
-    (tmp_path / "geosight_examples.txt").write_text(
+    (tmp_path / "post_examples.txt").write_text(
         "# comment\n🇮🇳 First\n▪️ point\n---\n# another comment\nSecond post\n---\n\n", encoding="utf-8")
-    assert load_examples("geosight", tmp_path) == ["🇮🇳 First\n▪️ point", "Second post"]
-    assert load_examples("spitting", tmp_path) == []
+    assert load_examples("post", tmp_path) == ["🇮🇳 First\n▪️ point", "Second post"]
+    assert load_examples("missing", tmp_path) == []
 
 
 def test_repo_example_files_parse():
-    assert isinstance(load_examples("spitting"), list) and isinstance(load_examples("geosight"), list)
+    assert isinstance(load_examples("post"), list)
 
 
 def test_system_prompt_contents():
-    p = system_prompt(GEOSIGHT, 1024, examples=["🇮🇳 Example post"])
+    p = system_prompt(POST, 1024, examples=["🇮🇳 Example post"])
     assert "1024" in p and "▪️" in p and "🔹" in p and "🔺" in p and "flag" in p
     assert "🇮🇳 Example post" in p and "Never invent" in p
-    s = system_prompt(SPITTING, 4000, examples=[])
-    assert "@spitting_fact" in s and "Do not translate" in s and "Example" not in s
+    assert "English" in p and "translate" in p
+    assert "Example" not in system_prompt(POST, 4000, examples=[])
 
 
 # ---- ai ------------------------------------------------------------------------------------------
@@ -80,7 +80,7 @@ def test_clean_output():
 async def test_format_retries_when_too_long(claude):
     ai = PostAI(make_config(), client=claude)
     claude.outputs += ["x" * 200, "short version"]
-    assert await ai.format_post(SPITTING, "raw", limit=100) == "short version"
+    assert await ai.format_post(POST, "raw", limit=100) == "short version"
     assert "Shorten" in claude.prompt(1)
 
 
@@ -88,30 +88,30 @@ async def test_format_fails_when_still_too_long(claude):
     ai = PostAI(make_config(), client=claude)
     claude.outputs += ["x" * 200, "y" * 200]
     with pytest.raises(AIError, match="Edit"):
-        await ai.format_post(SPITTING, "raw", limit=100)
+        await ai.format_post(POST, "raw", limit=100)
 
 
 async def test_cheaper_model_without_fallback_and_default_effort(claude):
     ai = PostAI(make_config(ai_model="claude-haiku-5-5", ai_effort=""), client=claude)
-    await ai.format_post(SPITTING, "raw", limit=1000)
+    await ai.format_post(POST, "raw", limit=1000)
     call = claude.calls[0]
     assert call["model"] == "claude-haiku-5-5"
     assert "fallbacks" not in call and "betas" not in call and "output_config" not in call
 
 
 @pytest.mark.parametrize(("exc", "needle"), [
-    (_err(anthropic.AuthenticationError, 401), "key galat"),
-    (_err(anthropic.NotFoundError, 404), "model nahi mila"),
-    (_err(anthropic.PermissionDeniedError, 403), "access nahi"),
+    (_err(anthropic.AuthenticationError, 401), "key is invalid"),
+    (_err(anthropic.NotFoundError, 404), "model not found"),
+    (_err(anthropic.PermissionDeniedError, 403), "no access"),
     (_err(anthropic.RateLimitError, 429), "busy"),
-    (_err(anthropic.BadRequestError, 400), "process nahi"),
+    (_err(anthropic.BadRequestError, 400), "couldn't process"),
     (_err(anthropic.InternalServerError, 500), "problem"),
 ])
 async def test_error_messages(claude, exc, needle):
     ai = PostAI(make_config(anthropic_api_key="sk-ant-SECRET-123"), client=claude)
     claude.outputs.append(exc)
     with pytest.raises(AIError) as info:
-        await ai.format_post(SPITTING, "raw", limit=1000)
+        await ai.format_post(POST, "raw", limit=1000)
     assert needle in str(info.value) and "SECRET" not in str(info.value)
 
 

@@ -1,10 +1,10 @@
-"""Telegram side: /format + content (owner DM or the allowed group) -> style buttons -> Claude -> preview with
-buttons -> final post in the same chat. Messages without /format are ignored, except the edit instruction.
+"""Telegram side: /format + content (owner DM or the allowed group) -> Claude -> preview with buttons ->
+final post (bold heading) in the same chat. Messages without /format are ignored, except the edit instruction.
 
 Draft document (collection ``drafts``):
-  {_id, user_id, chat_id, raw_text, photo_file_id, style, text, preview_msg_id,
+  {_id, user_id, chat_id, raw_text, photo_file_id, text, preview_msg_id,
    awaiting_edit, status: new|ready|done|cancelled, created_at, updated_at}
-Callback data: ``st:<draft>:<style>``, ``re:<draft>``, ``ed:<draft>``, ``ok:<draft>``, ``x:<draft>``.
+Callback data: ``re:<draft>``, ``ed:<draft>``, ``ok:<draft>``, ``x:<draft>``.
 """
 
 from __future__ import annotations
@@ -25,7 +25,7 @@ from bot.access import Access
 from bot.ai import AIError, PostAI
 from bot.config import Config
 from bot.db import Database
-from bot.styles import STYLES
+from bot.styles import POST
 from bot.utils import CAPTION_LIMIT, TEXT_LIMIT, h, utcnow
 
 log = logging.getLogger(__name__)
@@ -45,20 +45,24 @@ def parse_format(text: str | None, bot_username: str | None) -> str | None:
     return (text or "")[m.end():].strip()
 
 
-def style_keyboard(draft_id: str) -> InlineKeyboardMarkup:
-    return InlineKeyboardMarkup([
-        [InlineKeyboardButton(texts.BTN_SPITTING, callback_data=f"st:{draft_id}:spitting"),
-         InlineKeyboardButton(texts.BTN_GEOSIGHT, callback_data=f"st:{draft_id}:geosight")],
-        [InlineKeyboardButton(texts.BTN_CANCEL, callback_data=f"x:{draft_id}")],
-    ])
-
-
 def result_keyboard(draft_id: str) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup([
         [InlineKeyboardButton(texts.BTN_REGEN, callback_data=f"re:{draft_id}"),
          InlineKeyboardButton(texts.BTN_EDIT, callback_data=f"ed:{draft_id}")],
-        [InlineKeyboardButton(texts.BTN_DONE, callback_data=f"ok:{draft_id}")],
+        [InlineKeyboardButton(texts.BTN_DONE, callback_data=f"ok:{draft_id}"),
+         InlineKeyboardButton(texts.BTN_CANCEL, callback_data=f"x:{draft_id}")],
     ])
+
+
+def retry_keyboard(draft_id: str) -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup([[InlineKeyboardButton(texts.BTN_RETRY, callback_data=f"re:{draft_id}"),
+                                  InlineKeyboardButton(texts.BTN_CANCEL, callback_data=f"x:{draft_id}")]])
+
+
+def post_html(text: str) -> str:
+    """The post as Telegram HTML: line 1 (the heading) in bold, the rest unchanged."""
+    heading, sep, rest = text.partition("\n")
+    return f"<b>{h(heading)}</b>{sep}{h(rest)}" if heading.strip() else h(text)
 
 
 class Formatter:
@@ -95,7 +99,7 @@ class Formatter:
     async def send_post(self, chat_id: int, text: str, photo: Any = None,
                         markup: InlineKeyboardMarkup | None = None) -> Message:
         """Send the post (photo + caption, or text). Returns the message that carries the buttons."""
-        body = h(text)
+        body = post_html(text)
         if photo is None:
             return await self.bot.send_message(chat_id, body, parse_mode=ParseMode.HTML, reply_markup=markup)
         return await self.bot.send_photo(chat_id, photo=photo, caption=body, parse_mode=ParseMode.HTML,
@@ -153,18 +157,22 @@ class Formatter:
         now = utcnow()
         await self.db.drafts.insert_one({
             "_id": draft_id, "user_id": msg.from_user.id, "chat_id": msg.chat_id, "raw_text": raw,
-            "photo_file_id": photo_id, "style": None, "text": None, "preview_msg_id": None, "awaiting_edit": False,
+            "photo_file_id": photo_id, "text": None, "preview_msg_id": None, "awaiting_edit": False,
             "status": "new", "created_at": now, "updated_at": now,
         })
-        await msg.reply_text(texts.CHOOSE_STYLE, reply_markup=style_keyboard(draft_id))
+        draft = await self.db.drafts.find_one({"_id": draft_id})
+        self._claim(draft_id)
+        try:
+            await self.run_format(draft)
+        finally:
+            self.busy.discard(draft_id)
 
     async def run_format(self, draft: dict, *, regenerate: bool = False, instruction: str | None = None) -> None:
-        style = STYLES[draft["style"]]
-        status = await self._status(draft["chat_id"], texts.WORKING.format(style=h(style.label)))
+        status = await self._status(draft["chat_id"], texts.WORKING)
         try:
             image = await self._photo_bytes(draft.get("photo_file_id"))
             text = await self.ai.format_post(
-                style, draft.get("raw_text") or "", limit=self.limit_for(draft), image_bytes=image,
+                POST, draft.get("raw_text") or "", limit=self.limit_for(draft), image_bytes=image,
                 previous=draft.get("text") if (regenerate or instruction) else None, instruction=instruction,
             )
         except AIError as e:
@@ -172,7 +180,7 @@ class Formatter:
             await self.bot.send_message(draft["chat_id"], texts.ERROR.format(error=h(e)) + "\n" + texts.FAILED_RETRY,
                                         parse_mode=ParseMode.HTML,
                                         reply_markup=result_keyboard(draft["_id"]) if draft.get("text")
-                                        else style_keyboard(draft["_id"]))
+                                        else retry_keyboard(draft["_id"]))
             return
         await self._clear_status(draft["chat_id"], status)
         await self._update(draft["_id"], text=text, awaiting_edit=False)
@@ -211,14 +219,11 @@ class Formatter:
             return
         try:
             await q.answer()
-            if action == "st" and len(parts) == 3 and parts[2] in STYLES:
-                with contextlib.suppress(TelegramError):
-                    await q.edit_message_reply_markup(reply_markup=None)
-                await self._update(draft_id, style=parts[2])
-                draft["style"] = parts[2]
-                await self.run_format(draft)
-            elif action == "re" and draft.get("text"):
-                await self.run_format(draft, regenerate=True)
+            if action == "re":
+                if not draft.get("text"):  # "Try again" after an error
+                    with contextlib.suppress(TelegramError):
+                        await q.edit_message_reply_markup(reply_markup=None)
+                await self.run_format(draft, regenerate=bool(draft.get("text")))
             elif action == "ed" and draft.get("text"):
                 await self._update(draft_id, awaiting_edit=True)
                 await self.bot.send_message(draft["chat_id"], texts.ASK_EDIT, parse_mode=ParseMode.HTML)

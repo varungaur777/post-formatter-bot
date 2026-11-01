@@ -1,6 +1,6 @@
 """Claude API call that formats a post. The model comes from env (AI_MODEL, default claude-opus-5-5).
 
-Every failure is turned into ``AIError`` with a short Hinglish message that is safe to show to the admin;
+Every failure is turned into ``AIError`` with a short English message that is safe to show to the admin;
 the key never reaches a message.
 """
 
@@ -44,28 +44,28 @@ def clean_output(text: str) -> str:
 def _map_error(e: Exception) -> AIError:
     if isinstance(e, anthropic.AuthenticationError):
         log.error("Claude: invalid API key")
-        return AIError("Claude API key galat hai – owner ANTHROPIC_API_KEY check kare.")
+        return AIError("The Claude API key is invalid – the owner should check ANTHROPIC_API_KEY.")
     if isinstance(e, anthropic.PermissionDeniedError):
         log.error("Claude: permission denied (%s)", getattr(e, "message", e))
-        return AIError("Claude API key ko is model ka access nahi hai.")
+        return AIError("The Claude API key has no access to this model.")
     if isinstance(e, anthropic.NotFoundError):
         log.error("Claude: model not found (%s)", getattr(e, "message", e))
-        return AIError("Claude model nahi mila – owner AI_MODEL check kare.")
+        return AIError("Claude model not found – the owner should check AI_MODEL.")
     if isinstance(e, anthropic.RateLimitError):
-        return AIError("Claude abhi busy hai – 1 minute baad try karein.")
+        return AIError("Claude is busy right now – try again in a minute.")
     if isinstance(e, anthropic.BadRequestError):
         msg = str(getattr(e, "message", "") or "")
         log.warning("Claude: bad request (%s)", msg)
         if "credit" in msg.lower() or "billing" in msg.lower():
-            return AIError("Claude account mein credit nahi hai – platform.claude.com par billing check karein.")
-        return AIError("Claude is content ko process nahi kar paya.")
+            return AIError("The Claude account is out of credits – check billing on platform.claude.com.")
+        return AIError("Claude couldn't process this content.")
     if isinstance(e, anthropic.APIConnectionError):
-        return AIError("Claude se connect nahi ho paya – thodi der baad try karein.")
+        return AIError("Couldn't reach Claude – try again in a little while.")
     if isinstance(e, anthropic.APIStatusError):
         log.warning("Claude: API error %s", e.status_code)
-        return AIError("Claude mein problem aayi – thodi der baad try karein.")
+        return AIError("Claude had a problem – try again in a little while.")
     log.exception("Claude: unexpected error")
-    return AIError("Kuch gadbad ho gayi – dobara try karein.")
+    return AIError("Something went wrong – please try again.")
 
 
 class PostAI:
@@ -98,7 +98,7 @@ class PostAI:
         except anthropic.AnthropicError as e:
             raise _map_error(e) from None
         if resp.stop_reason == "refusal":
-            raise AIError("Claude ne is content ko format karne se mana kar diya.")
+            raise AIError("Claude declined to format this content.")
         text = "".join(b.text for b in resp.content if b.type == "text")
         return clean_output(text)
 
@@ -128,7 +128,7 @@ class PostAI:
                                 f"keep the key facts:\n\n{text}"}]
             text = await self._ask(system, content)
         if not text:
-            raise AIError("Claude ne khaali jawab diya – dobara try karein.")
+            raise AIError("Claude returned an empty answer – please try again.")
         if len(text) > limit:
-            raise AIError(f"Post {limit} characters se lamba ban raha hai – ✏️ Edit se chhota karne ko bolein.")
+            raise AIError(f"The post is longer than {limit} characters – use ✏️ Edit and ask for a shorter version.")
         return text

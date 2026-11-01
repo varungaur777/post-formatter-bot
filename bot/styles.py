@@ -1,6 +1,6 @@
-"""Channel styles: the instructions Claude gets for each channel.
+"""The post format: the instructions Claude gets. There is one format (rules from the @GeoSight admins).
 
-Example posts in ``bot/styles/<style>_examples.txt`` (posts separated by a line with ``---``) are added to
+Example posts in ``bot/styles/post_examples.txt`` (posts separated by a line with ``---``) are added to
 the prompt so the model copies the real tone. Empty or missing file = no examples.
 """
 
@@ -25,49 +25,35 @@ You format posts for a Telegram channel. You get raw content from an admin (text
 and return ONE finished post.
 
 Hard rules:
+- Write the post in clear, simple English. If the input is in Hindi or Hinglish, translate it into natural
+  English (names, places and @mentions stay as they are).
 - Keep every fact, name, number, date, link and @mention that belongs to the news itself. Never invent,
   guess or add facts that are not in the input (the photo may only help you understand the input).
 - Remove channel promotion lines such as "Join @xyz", "Follow us", "Share", sign-offs or footers - the
   posting bot adds the channel footer itself.
 - Plain text only: no Markdown (no **, __, #), no HTML tags, no code blocks, no surrounding quotes.
+  The heading is made bold automatically.
 - Answer with the post only - no explanation, no "Here is your post".
 - The whole post must be at most {limit} characters.
 """
 
-SPITTING = Style(
-    key="spitting",
-    label="Spitting style",
-    channel="@spitting_fact",
-    rules="""\
-Channel style (@spitting_fact - short facts and news):
-- Line 1: a short, punchy headline (ideally under 12 words, no full stop). The channel shows line 1 in
-  bold automatically and the rest in a quote block, so put nothing else on line 1.
-- Then the body: 1-4 short, plain, easy-to-read lines or small paragraphs. Simple words, no filler.
-- Keep the SAME language and script as the input: Hindi stays Hindi (Devanagari), Hinglish stays
-  Hinglish (Roman script), English stays English. Do not translate.
-- 0-2 emojis in total, only where they fit. No hashtags unless the input had them.
-""",
-)
-
-GEOSIGHT = Style(
-    key="geosight",
-    label="GeoSight style",
+POST = Style(
+    key="post",
+    label="Post",
     channel="@GeoSight",
     rules="""\
-Channel style (@GeoSight - geography, world affairs and current events, rules from the channel admins):
+Format (rules from the channel admins):
 - Keep it simple and easy to understand. Quality over quantity: only the important points, merge
   repeated ones, but keep every key fact and number.
 - Line 1: the main heading, starting with the flag emoji of the main country involved (e.g. 🇮🇳 for
-  India, 🇺🇸 for the USA; two flags if two countries are central). No flag only if no country fits
-  (then use 🌍).
+  India, 🇺🇸 for the USA; two flags if two countries are central). If no country fits, use 🌍.
+  Nothing else on line 1.
 - After a blank line, the details as short pointers, one per line, using these markers:
   ▪️ for main points, 🔹 for supporting details / sub-points, 🔺 for the most important or alarming point.
   Usually 3-6 pointers.
-- Keep the language of the input (usually English). No hashtags unless the input had them.
+- No hashtags unless the input had them.
 """,
 )
-
-STYLES: dict[str, Style] = {s.key: s for s in (SPITTING, GEOSIGHT)}
 
 
 def load_examples(key: str, directory: Path = EXAMPLES_DIR, max_examples: int = 5) -> list[str]:

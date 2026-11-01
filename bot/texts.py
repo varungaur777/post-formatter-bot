@@ -1,50 +1,50 @@
-"""Every message the bot sends (simple Hinglish)."""
+"""Every message the bot sends (plain, simple English)."""
 
 BOT_COMMANDS = [
-    ("format", "Post format karo (text likho ya message par reply karo)"),
-    ("start", "Bot kaise use karein"),
+    ("format", "Format a post (add text, or reply to a message)"),
+    ("start", "How to use the bot"),
     ("help", "Help"),
-    ("cancel", "Edit cancel karein"),
-    ("id", "User ID / group chat ID dekhein"),
+    ("cancel", "Cancel a pending edit"),
+    ("id", "Show your user ID / this group's chat ID"),
 ]
 
 HELP = (
-    "<b>/format</b> ke saath post bhejo → style chuno → ✅ Done → final post "
-    "<b>@Priyanshipostbot</b> ko forward karo.\n\n"
-    "• <code>/format</code> aur uske aage post ka text\n"
-    "• kisi message/photo par reply karke <code>/format</code>\n"
-    "• photo ke caption mein <code>/format ...</code>"
+    "<b>Post Formatter</b>\n\n"
+    "Send <b>/format</b> with your content and I'll turn it into a clean post.\n\n"
+    "• <code>/format</code> followed by the text\n"
+    "• Reply to a message or photo with <code>/format</code>\n"
+    "• Send a photo with <code>/format ...</code> in the caption\n\n"
+    "Then use the buttons: 🔁 Regenerate, ✏️ Edit, ✅ Done.\n"
+    "Forward the final post to <b>@Priyanshipostbot</b> for approval."
 )
 FORMAT_USAGE = (
-    "Kya format karun? <code>/format</code> ke aage text likho, ya kisi message/photo par reply karke "
-    "<code>/format</code> likho."
+    "Nothing to format. Write the text after <code>/format</code>, or reply to a message or photo with "
+    "<code>/format</code>."
 )
-FORMAT_HINT = "Post format karne ke liye <code>/format</code> lagao. (Help: /start)"
+FORMAT_HINT = "To format a post, use <code>/format</code>. See /start for help."
 NOT_ALLOWED = (
-    "⛔ DM mein ye bot sirf owner use kar sakta hai.\n"
-    "Aapka user ID: <code>{uid}</code>"
+    "⛔ Sorry, only the owner can use this bot in private chat.\n"
+    "Your user ID: <code>{uid}</code>"
 )
-YOUR_ID = "Aapka user ID: <code>{uid}</code>"
-CHAT_ID = "Is group ka chat ID: <code>{cid}</code>"
-CHOOSE_STYLE = "Kis channel ke style mein format karun? 👇"
-WORKING = "⏳ {style} mein format ho raha hai..."
-BUSY = "Ruko, pichla kaam chal raha hai..."
-STALE = "Ye draft purana ho gaya – naya content bhejiye."
+YOUR_ID = "Your user ID: <code>{uid}</code>"
+CHAT_ID = "This group's chat ID: <code>{cid}</code>"
+WORKING = "⏳ Formatting your post..."
+BUSY = "Please wait, I'm still working on this post..."
+STALE = "This draft has expired or isn't yours. Send /format again."
 ASK_EDIT = (
-    "✏️ Kya badalna hai? Likh kar bhejiye.\n"
-    "Jaise: <i>headline chhoti karo</i>, <i>Hindi mein likho</i>, <i>last point hata do</i>.\n"
-    "Cancel ke liye /cancel"
+    "✏️ What should I change? Just type it.\n"
+    "For example: <i>make the heading shorter</i>, <i>remove the last point</i>.\n"
+    "Send /cancel to stop."
 )
-EDIT_CANCELLED = "Theek hai, edit cancel."
-NOTHING_TO_CANCEL = "Cancel karne ko kuch nahi hai."
-FINAL_NOTE = "👆 Ye final post hai – ise <b>@Priyanshipostbot</b> ko forward kar dijiye."
-CANCELLED = "❌ Draft cancel ho gaya."
+EDIT_CANCELLED = "OK, edit cancelled."
+NOTHING_TO_CANCEL = "There's nothing to cancel."
+FINAL_NOTE = "👆 Final post is ready. Forward it to <b>@Priyanshipostbot</b>."
+CANCELLED = "❌ Draft cancelled."
 ERROR = "⚠️ {error}"
-FAILED_RETRY = "Neeche button se dobara try kar sakte hain."
+FAILED_RETRY = "You can try again with the button below."
 
-BTN_SPITTING = "🔥 Spitting style"
-BTN_GEOSIGHT = "🌍 GeoSight style"
-BTN_CANCEL = "❌ Cancel"
-BTN_REGEN = "🔁 Regenerate text"
+BTN_REGEN = "🔁 Regenerate"
 BTN_EDIT = "✏️ Edit"
 BTN_DONE = "✅ Done"
+BTN_CANCEL = "❌ Cancel"
+BTN_RETRY = "🔁 Try again"

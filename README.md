@@ -1,7 +1,7 @@
 # Post Formatter Bot 🤖✍️
 
-Ye Telegram bot **Claude AI (Anthropic API)** se aapke channel posts ko **Spitting** ya **GeoSight** style
-mein format karta hai.
+Ye Telegram bot **Claude AI (Anthropic API)** se aapke channel posts ko ek saaf format mein likhta hai:
+**bold heading** (flag ke saath), ▪️🔹🔺 pointers, aur hamesha **English** mein. Bot ke apne messages bhi English mein hain.
 
 Ye **@Priyanshipostbot (posting bot) se alag** hai. Ye channel par kuch post nahi karta – sirf final post
 usi chat mein bhejta hai (owner ka DM ya aapka group), aap use @Priyanshipostbot ko forward karte ho, wahan approval ke baad post hoti hai.
@@ -12,12 +12,12 @@ usi chat mein bhejta hai (owner ka DM ya aapka group), aap use @Priyanshipostbot
    - `/format` aur uske aage post ka text
    - kisi message/photo par **reply** karke `/format` (aage extra text bhi likh sakte ho)
    - photo ke caption mein `/format ...`
-2. Style chuno: **🔥 Spitting style** ya **🌍 GeoSight style**.
-3. Bot formatted post ka preview bhejega. Neeche buttons:
-   - 🔁 **Regenerate text** – naya version likhta hai
+2. Bot turant formatted post ka preview bhejega (heading bold). Neeche buttons:
+   - 🔁 **Regenerate** – naya version likhta hai
    - ✏️ **Edit** – aap likh kar batao kya badalna hai (jaise "headline chhoti karo") – iske liye `/format` nahi lagana
-   - ✅ **Done** – final post (photo + caption, ya text) usi chat mein aa jayegi
-4. Final post ko **@Priyanshipostbot** ko forward kar do. Footer / "Join" line woh bot khud lagata hai.
+   - ✅ **Done** – final post (photo + caption, ya text, heading bold) usi chat mein aa jayegi
+   - ❌ **Cancel** – draft band
+3. Final post ko **@Priyanshipostbot** ko forward kar do. Footer / "Join" line woh bot khud lagata hai.
 
 Commands: `/format` `/start` `/help` `/cancel` (edit cancel) `/id` (apna user ID, group mein group ka chat ID bhi).
 
@@ -36,19 +36,20 @@ Commands: `/format` `/start` `/help` `/cancel` (edit cancel) `/id` (apna user ID
 
 Bot sirf `/format` wale messages par kaam karta hai, baaki group chat ko ignore karta hai.
 
-## Styles
+## Post ka format
 
-- **Spitting (@spitting_fact):** line 1 par chhoti punchy headline, neeche simple body. Hindi/Hinglish/English
-  jaisa bheja waisa hi rehta hai (translate nahi hota).
-- **GeoSight (@GeoSight):** channel admins ke rules – post simple aur samajhne mein aasaan, heading mein
-  country flag (🇮🇳), points ▪️ 🔹 🔺 ke saath, quality over quantity.
-  (Do posts ke beech 30-35 minute ka gap @Priyanshipostbot ka kaam hai – wahan GeoSight channel ka gap set karein.)
-- Har style mein: koi fact, naam, number, link ya @mention badla/banaya nahi jaata. Photo wali post max
-  1024 characters.
+Rules @GeoSight admins ke hain:
+- Line 1: heading, shuru mein main country ka flag (🇮🇳). Ye heading bot apne aap **bold** karta hai.
+- Neeche short pointers: ▪️ main points, 🔹 details, 🔺 sabse important point.
+- Simple aur samajhne mein aasaan, quality over quantity.
+- Hamesha English. Hindi/Hinglish input bhi English mein translate hota hai (naam, jagah, @mention waise hi rehte hain).
+- Koi fact, naam, number, link ya @mention badla ya banaya nahi jaata. Photo wali post max 1024 characters.
+- Footer / "Join" / "Follow" line nahi lagti – woh @Priyanshipostbot lagata hai.
+  (Do posts ke beech 30-35 minute ka gap bhi @Priyanshipostbot ka kaam hai.)
 
-**Style aur behtar karna hai?** Apne channel ki 3-5 achhi posts `bot/styles/spitting_examples.txt` ya
-`bot/styles/geosight_examples.txt` mein daal do (har post ke beech ek line par sirf `---`). Push karte hi
-bot restart hokar unhi jaisa likhne lagega. Rules badalne hain to `bot/styles.py` dekho.
+**Format aur behtar karna hai?** Apne channel ki 3-5 achhi posts `bot/styles/post_examples.txt` mein daal do
+(har post ke beech ek line par sirf `---`). Push karte hi bot restart hokar unhi jaisa likhne lagega.
+Rules badalne hain to `bot/styles.py` dekho.
 
 ## Setup (GitHub Actions – 24/7, free)
 
@@ -105,7 +106,7 @@ Tests aur lint:
 
 - `bot/handlers.py` – Telegram flow (buttons, preview, final post)
 - `bot/ai.py` – Claude API call (post formatting)
-- `bot/styles.py` – Spitting / GeoSight rules
+- `bot/styles.py` – post format ke rules
 - `bot/access.py` – kaun use kar sakta hai
 - `bot/lease.py` – single-instance lease (MongoDB)
 - `.github/workflows/bot.yml` – 24/7 run, `ci.yml` – tests, `keepalive.yml` – workflows ko active rakhta hai
