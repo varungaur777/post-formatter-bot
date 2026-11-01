@@ -2,7 +2,6 @@
 
 Collections:
   drafts  - one document per post being formatted (deleted automatically after DRAFT_TTL_DAYS)
-  users   - admins added with /adduser  {_id: user_id, added_by, added_at}
   lease   - single-instance lease (see bot.lease)
 """
 
@@ -24,7 +23,6 @@ class Database:
         self.client = client
         self.ttl_days = ttl_days
         self.drafts = db["drafts"]
-        self.users = db["users"]
         self.lease = db["lease"]
 
     @classmethod

@@ -9,7 +9,7 @@
 #
 # Stop the bot:   Actions -> bot -> "..." -> Disable workflow, then cancel the running run
 #                 (a cancelled run does NOT start the next one).
-# Secrets:        BOT_TOKEN, OWNER_ID, SUBMITTER_IDS, ANTHROPIC_API_KEY, MONGO_URL, MONGO_DB_NAME (optional)
+# Secrets:        BOT_TOKEN, OWNER_ID, GROUP_CHAT_ID, ANTHROPIC_API_KEY, MONGO_URL, MONGO_DB_NAME (optional)
 # Variables:      AI_MODEL, AI_EFFORT, LOG_LEVEL (all optional)
 
 name: bot
@@ -58,7 +58,7 @@ jobs:
           PYTHONUNBUFFERED: "1"
           BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
           OWNER_ID: ${{ secrets.OWNER_ID }}
-          SUBMITTER_IDS: ${{ secrets.SUBMITTER_IDS }}
+          GROUP_CHAT_ID: ${{ secrets.GROUP_CHAT_ID }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           MONGO_URL: ${{ secrets.MONGO_URL }}
           MONGO_DB_NAME: ${{ secrets.MONGO_DB_NAME }}

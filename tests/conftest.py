@@ -18,10 +18,11 @@ from bot.db import Database
 from bot.handlers import Formatter
 
 OWNER, ADMIN, STRANGER = 1, 2, 99
+GROUP, OTHER_GROUP = -100500, -100600
 
 
 def make_config(**over: Any) -> Config:
-    base = dict(bot_token="123:TEST", owner_id=OWNER, submitter_ids=frozenset({ADMIN}),
+    base = dict(bot_token="123:TEST", owner_id=OWNER, group_chat_ids=frozenset({GROUP}),
                 anthropic_api_key="sk-ant-test", mongo_url="mongodb://test", mongo_db_name="test")
     base.update(over)
     return Config(**base)
@@ -116,15 +117,13 @@ def claude() -> FakeClaude:
 
 
 @pytest.fixture
-async def access(cfg: Config, db: Database) -> Access:
-    a = Access(cfg, db)
-    await a.load()
-    return a
+def access(cfg: Config) -> Access:
+    return Access(cfg)
 
 
 @pytest.fixture
-def fmt(cfg: Config, db: Database, bot: FakeBot, claude: FakeClaude, access: Access) -> Formatter:
-    return Formatter(cfg, db, bot, PostAI(cfg, client=claude), access)
+def fmt(cfg: Config, db: Database, bot: FakeBot, claude: FakeClaude) -> Formatter:
+    return Formatter(cfg, db, bot, PostAI(cfg, client=claude))
 
 
 _mid = iter(range(1, 10**6))
@@ -134,24 +133,29 @@ def user(uid: int) -> User:
     return User(id=uid, first_name=f"User{uid}", is_bot=False)
 
 
-def text_msg(uid: int, text: str, bot: FakeBot) -> Message:
-    m = Message(message_id=next(_mid), date=datetime.now(UTC), chat=Chat(id=uid, type="private"),
+def _chat(uid: int, chat_id: int | None) -> Chat:
+    return Chat(id=uid, type="private") if chat_id is None else Chat(id=chat_id, type="supergroup")
+
+
+def text_msg(uid: int, text: str, bot: FakeBot, chat_id: int | None = None) -> Message:
+    m = Message(message_id=next(_mid), date=datetime.now(UTC), chat=_chat(uid, chat_id),
                 from_user=user(uid), text=text)
     m.set_bot(bot)
     return m
 
 
-def photo_msg(uid: int, caption: str | None, bot: FakeBot, group: str | None = None) -> Message:
+def photo_msg(uid: int, caption: str | None, bot: FakeBot, group: str | None = None,
+              chat_id: int | None = None) -> Message:
     photo = (PhotoSize(file_id="small", file_unique_id="s", width=10, height=10),
              PhotoSize(file_id="big-photo", file_unique_id="b", width=100, height=100))
-    m = Message(message_id=next(_mid), date=datetime.now(UTC), chat=Chat(id=uid, type="private"),
+    m = Message(message_id=next(_mid), date=datetime.now(UTC), chat=_chat(uid, chat_id),
                 from_user=user(uid), photo=photo, caption=caption, media_group_id=group)
     m.set_bot(bot)
     return m
 
 
-def button(uid: int, data: str, bot: FakeBot) -> Update:
-    msg = Message(message_id=next(_mid), date=datetime.now(UTC), chat=Chat(id=uid, type="private"))
+def button(uid: int, data: str, bot: FakeBot, chat_id: int | None = None) -> Update:
+    msg = Message(message_id=next(_mid), date=datetime.now(UTC), chat=_chat(uid, chat_id))
     q = CallbackQuery(id=str(next(_mid)), from_user=user(uid), chat_instance="ci", data=data, message=msg)
     q.set_bot(bot)
     msg.set_bot(bot)

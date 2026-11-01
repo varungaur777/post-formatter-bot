@@ -4,23 +4,33 @@ Ye Telegram bot **Claude AI (Anthropic API)** se aapke channel posts ko **Spitti
 mein format karta hai.
 
 Ye **@Priyanshipostbot (posting bot) se alag** hai. Ye channel par kuch post nahi karta – sirf final post
-aapke DM mein bhejta hai, aap use @Priyanshipostbot ko forward karte ho, wahan approval ke baad post hoti hai.
+usi chat mein bhejta hai (owner ka DM ya aapka group), aap use @Priyanshipostbot ko forward karte ho, wahan approval ke baad post hoti hai.
 
 ## Kaise use karein
 
-1. Bot ko DM mein raw content bhejo – sirf text, ya photo + text.
+1. Group mein (ya owner apne DM mein) raw content bhejo – sirf text, ya photo + text.
 2. Style chuno: **🔥 Spitting style** ya **🌍 GeoSight style**.
 3. Bot formatted post ka preview bhejega. Neeche buttons:
    - 🔁 **Regenerate text** – naya version likhta hai
    - ✏️ **Edit** – aap likh kar batao kya badalna hai (jaise "headline chhoti karo")
-   - ✅ **Done** – final post (photo + caption, ya text) DM mein aa jayegi
+   - ✅ **Done** – final post (photo + caption, ya text) usi chat mein aa jayegi
 4. Final post ko **@Priyanshipostbot** ko forward kar do. Footer / "Join" line woh bot khud lagata hai.
 
-Commands: `/start` `/help` `/cancel` (edit cancel) `/id` (apna user ID).
-Owner ke liye: `/adduser 123456789`, `/removeuser 123456789`, `/users`.
-**Sirf approved log hi bot use kar sakte hain:** owner, `SUBMITTER_IDS` secret wale IDs, aur jinhe owner ne
-`/adduser` se add kiya. Koi anjaan user message kare to bot kuch format nahi karta, bas use uska user ID
-dikha deta hai – woh ID owner ko bhej de.
+Commands: `/start` `/help` `/cancel` (edit cancel) `/id` (apna user ID, group mein group ka chat ID bhi).
+
+**Kaun use kar sakta hai:**
+- **DM mein sirf owner** (`OWNER_ID`). Koi aur DM kare to bot sirf mana karta hai aur uska user ID dikha deta hai.
+- **Ek specific group** (`GROUP_CHAT_ID`) – us group ka har member use kar sakta hai.
+- Kisi aur group mein bot chup rehta hai.
+- Preview ke buttons sirf wahi daba sakta hai jisne woh content bheja tha.
+
+**Group setup:**
+1. Bot ko group mein add karo aur **admin bana do** (warna bot group ke normal messages dekh nahi pata).
+   Ya @BotFather → `/setprivacy` → bot chuno → **Disable**.
+2. Group mein `/id` bhejo – bot group ka chat ID batayega (jaise `-1001234567890`).
+3. Woh ID `GROUP_CHAT_ID` secret mein daal do (neeche dekho). Bot restart hote hi group mein kaam karega.
+
+Tip: is kaam ke liye alag group rakho – group ke har text/photo message par bot style ke buttons bhejta hai.
 
 ## Styles
 
@@ -47,7 +57,7 @@ pehle agla run start kar deta hai. MongoDB lease ensure karta hai ki ek time par
 |---|---|
 | `BOT_TOKEN` | @BotFather se naye bot ka token |
 | `OWNER_ID` | `7364684102` |
-| `SUBMITTER_IDS` | baaki admins ke user IDs, comma se alag (khaali bhi chalega) |
+| `GROUP_CHAT_ID` | woh group jahan sab members bot use kar sakein (group mein `/id` se milega) |
 | `ANTHROPIC_API_KEY` | platform.claude.com → API keys (credits add hone chahiye) |
 | `MONGO_URL` | MongoDB Atlas connection string (purane bot wala cluster chalega) |
 | `MONGO_DB_NAME` | optional, default `post_formatter_bot` (`channel_poster_bot` allowed nahi hai) |

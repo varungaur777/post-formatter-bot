@@ -73,11 +73,10 @@ async def run(cfg: Config) -> int:
             log.info("stopped before the lease became free")
             return 0
 
-        access = Access(cfg, db)
-        await access.load()
+        access = Access(cfg)
         app = build_application(cfg)
         ai = PostAI(cfg)
-        fmt = Formatter(cfg, db, app.bot, ai, access)
+        fmt = Formatter(cfg, db, app.bot, ai)
         register(app, cfg, fmt, access)
         app.add_error_handler(_on_error)
 

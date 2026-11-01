@@ -25,7 +25,7 @@ class ConfigError(Exception):
 class Config:
     bot_token: str
     owner_id: int
-    submitter_ids: frozenset[int]
+    group_chat_ids: frozenset[int]
     anthropic_api_key: str
     mongo_url: str
     mongo_db_name: str = DEFAULT_DB_NAME
@@ -69,13 +69,13 @@ def _float(env: Mapping[str, str], name: str, default: float) -> float:
 
 
 def parse_ids(raw: str) -> frozenset[int]:
-    """'123, 456 789' -> {123, 456, 789}"""
+    """'-100123, 456 789' -> {-100123, 456, 789}"""
     out: set[int] = set()
     for part in raw.replace(",", " ").split():
         try:
             out.add(int(part))
         except ValueError:
-            raise ConfigError(f"invalid Telegram user id {part!r}") from None
+            raise ConfigError(f"invalid Telegram id {part!r}") from None
     return frozenset(out)
 
 
@@ -107,7 +107,7 @@ def load_config(env: Mapping[str, str] | None = None) -> Config:
     return Config(
         bot_token=token,
         owner_id=_int(env, "OWNER_ID"),
-        submitter_ids=parse_ids(_get(env, "SUBMITTER_IDS")),
+        group_chat_ids=parse_ids(_get(env, "GROUP_CHAT_ID")),
         anthropic_api_key=key,
         mongo_url=mongo_url,
         mongo_db_name=db_name,

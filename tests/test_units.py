@@ -14,7 +14,7 @@ from bot.config import ConfigError, load_config
 from bot.lease import Lease
 from bot.styles import GEOSIGHT, SPITTING, load_examples, system_prompt
 from bot.utils import RedactFilter
-from tests.conftest import ADMIN, OWNER, STRANGER, make_config
+from tests.conftest import ADMIN, GROUP, OWNER, STRANGER, make_config
 
 BASE_ENV = {"BOT_TOKEN": "1:x", "OWNER_ID": "7364684102", "ANTHROPIC_API_KEY": "sk-ant-x", "MONGO_URL": "mongodb://x"}
 
@@ -26,9 +26,8 @@ def _err(cls, status, body=None):
 
 # ---- config --------------------------------------------------------------------------------------
 def test_config_defaults():
-    cfg = load_config({**BASE_ENV, "SUBMITTER_IDS": "5, 6 7"})
+    cfg = load_config(BASE_ENV)
     assert cfg.mongo_db_name == "post_formatter_bot"
-    assert cfg.submitter_ids == {5, 6, 7}
     assert cfg.ai_model == "claude-opus-5-5" and cfg.ai_effort == "low"
     assert cfg.max_runtime_minutes == 0
 
@@ -117,20 +116,21 @@ async def test_error_messages(claude, exc, needle):
 
 
 # ---- access --------------------------------------------------------------------------------------
-async def test_access(db):
-    cfg = make_config()
-    a = Access(cfg, db)
-    await a.load()
-    assert a.allowed(OWNER) and a.allowed(ADMIN) and not a.allowed(STRANGER) and not a.allowed(None)
-    assert await a.add(STRANGER, OWNER) is True
-    assert await a.add(STRANGER, OWNER) is False
-    b = Access(cfg, db)
-    await b.load()
-    assert b.allowed(STRANGER)  # survives a restart
-    assert await b.remove(STRANGER) == "removed" and not b.allowed(STRANGER)
-    assert await b.remove(ADMIN) == "env"
-    assert await b.remove(OWNER) == "owner"
-    assert await b.remove(12345) == "missing"
+def test_access():
+    from telegram import Chat
+
+    a = Access(make_config())
+    dm = Chat(id=5, type="private")
+    assert a.allowed(dm, OWNER) and not a.allowed(dm, ADMIN) and not a.allowed(dm, STRANGER)
+    assert a.allowed(Chat(id=GROUP, type="supergroup"), STRANGER)
+    assert not a.allowed(Chat(id=-1, type="group"), OWNER)
+    assert not a.allowed(None, OWNER) and not a.allowed(dm, None)
+
+
+def test_config_group_ids():
+    cfg = load_config({**BASE_ENV, "GROUP_CHAT_ID": "-1001234567890"})
+    assert cfg.group_chat_ids == {-1001234567890}
+    assert load_config(BASE_ENV).group_chat_ids == frozenset()
 
 
 # ---- lease ---------------------------------------------------------------------------------------

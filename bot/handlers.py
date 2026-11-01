@@ -1,4 +1,5 @@
-"""Telegram side: DM in -> style buttons -> Claude -> preview with buttons -> final post in the DM.
+"""Telegram side: content in (owner DM or the allowed group) -> style buttons -> Claude -> preview with
+buttons -> final post in the same chat.
 
 Draft document (collection ``drafts``):
   {_id, user_id, chat_id, raw_text, photo_file_id, style, text, preview_msg_id,
@@ -47,12 +48,11 @@ def result_keyboard(draft_id: str) -> InlineKeyboardMarkup:
 
 
 class Formatter:
-    def __init__(self, cfg: Config, db: Database, bot: Any, ai: PostAI, access: Access) -> None:
+    def __init__(self, cfg: Config, db: Database, bot: Any, ai: PostAI) -> None:
         self.cfg = cfg
         self.db = db
         self.bot = bot
         self.ai = ai
-        self.access = access
         self.busy: set[str] = set()
         self.albums_seen: dict[str, None] = {}
 
@@ -111,7 +111,7 @@ class Formatter:
     # ---- incoming content --------------------------------------------------------------------
     async def on_content(self, msg: Message) -> None:
         uid = msg.from_user.id
-        editing = await self.db.drafts.find_one({"user_id": uid, "awaiting_edit": True},
+        editing = await self.db.drafts.find_one({"user_id": uid, "chat_id": msg.chat_id, "awaiting_edit": True},
                                                 sort=[("updated_at", -1)])
         if editing is not None and msg.text:
             await self.apply_edit(editing, msg.text)
@@ -227,78 +227,35 @@ class Formatter:
 
 # ---- handler wiring ------------------------------------------------------------------------------
 def register(app: Application, cfg: Config, fmt: Formatter, access: Access) -> None:
-    private = filters.ChatType.PRIVATE
+    where = filters.ChatType.PRIVATE | filters.Chat(chat_id=list(cfg.group_chat_ids))
 
     async def guard(update: Update) -> bool:
-        user = update.effective_user
-        if access.allowed(user.id if user else None):
+        user, chat = update.effective_user, update.effective_chat
+        if access.allowed(chat, user.id if user else None):
             return True
         if update.callback_query:
             await update.callback_query.answer("⛔", show_alert=False)
-        elif update.effective_message and user:
+        elif chat is not None and chat.type == chat.PRIVATE and update.effective_message and user:
             await update.effective_message.reply_text(texts.NOT_ALLOWED.format(uid=user.id), parse_mode=ParseMode.HTML)
-        return False
+        return False  # other groups: stay quiet
 
     async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         if not await guard(update):
             return
-        extra = texts.OWNER_HELP if cfg.is_owner(update.effective_user.id) else ""
-        await update.effective_message.reply_text(texts.HELP + extra, parse_mode=ParseMode.HTML)
+        await update.effective_message.reply_text(texts.HELP, parse_mode=ParseMode.HTML)
 
     async def my_id(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-        await update.effective_message.reply_text(texts.YOUR_ID.format(uid=update.effective_user.id),
-                                                  parse_mode=ParseMode.HTML)
+        text = texts.YOUR_ID.format(uid=update.effective_user.id)
+        chat = update.effective_chat
+        if chat.type != chat.PRIVATE:
+            text += "\n" + texts.CHAT_ID.format(cid=chat.id)
+        await update.effective_message.reply_text(text, parse_mode=ParseMode.HTML)
 
     async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         if not await guard(update):
             return
         done = await fmt.cancel_edit(update.effective_user.id)
         await update.effective_message.reply_text(texts.EDIT_CANCELLED if done else texts.NOTHING_TO_CANCEL)
-
-    def _target(context: ContextTypes.DEFAULT_TYPE) -> int | None:
-        try:
-            return int(context.args[0]) if context.args else None
-        except ValueError:
-            return None
-
-    async def add_user(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-        msg = update.effective_message
-        if not cfg.is_owner(update.effective_user.id):
-            await msg.reply_text(texts.OWNER_ONLY)
-            return
-        uid = _target(context)
-        if uid is None:
-            await msg.reply_text(texts.ADD_USAGE)
-            return
-        added = await access.add(uid, update.effective_user.id)
-        await msg.reply_text((texts.ADDED if added else texts.ALREADY).format(uid=uid), parse_mode=ParseMode.HTML)
-
-    async def remove_user(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-        msg = update.effective_message
-        if not cfg.is_owner(update.effective_user.id):
-            await msg.reply_text(texts.OWNER_ONLY)
-            return
-        uid = _target(context)
-        if uid is None:
-            await msg.reply_text(texts.REMOVE_USAGE)
-            return
-        result = await access.remove(uid)
-        reply = {"removed": texts.REMOVED, "env": texts.REMOVE_ENV, "owner": texts.REMOVE_OWNER,
-                 "missing": texts.REMOVE_MISSING}[result]
-        await msg.reply_text(reply.format(uid=uid), parse_mode=ParseMode.HTML)
-
-    async def list_users(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-        msg = update.effective_message
-        if not cfg.is_owner(update.effective_user.id):
-            await msg.reply_text(texts.OWNER_ONLY)
-            return
-        env_ids, added = access.listing()
-
-        def fmt_ids(ids: list[int]) -> str:
-            return ", ".join(f"<code>{i}</code>" for i in ids) or "–"
-
-        await msg.reply_text(texts.USERS.format(owner=cfg.owner_id, env=fmt_ids(env_ids), added=fmt_ids(added)),
-                             parse_mode=ParseMode.HTML)
 
     async def content(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         if not await guard(update):
@@ -315,12 +272,11 @@ def register(app: Application, cfg: Config, fmt: Formatter, access: Access) -> N
             return
         await fmt.on_button(update)
 
-    app.add_handler(CommandHandler(["start", "help"], start, filters=private))
+    app.add_handler(CommandHandler(["start", "help"], start, filters=where))
     app.add_handler(CommandHandler("id", my_id))
-    app.add_handler(CommandHandler("cancel", cancel, filters=private))
-    app.add_handler(CommandHandler("adduser", add_user, filters=private))
-    app.add_handler(CommandHandler("removeuser", remove_user, filters=private))
-    app.add_handler(CommandHandler("users", list_users, filters=private))
-    app.add_handler(MessageHandler(private & (filters.TEXT & ~filters.COMMAND | filters.PHOTO), content))
-    app.add_handler(MessageHandler(private & ~filters.COMMAND & ~filters.StatusUpdate.ALL, unsupported))
+    app.add_handler(CommandHandler("cancel", cancel, filters=where))
+    app.add_handler(MessageHandler(where & (filters.TEXT & ~filters.COMMAND | filters.PHOTO), content))
+    # stickers / videos etc.: answer in DMs only, a group chat stays quiet
+    app.add_handler(MessageHandler(filters.ChatType.PRIVATE & ~filters.COMMAND & ~filters.StatusUpdate.ALL,
+                                   unsupported))
     app.add_handler(CallbackQueryHandler(button))
