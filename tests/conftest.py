@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import base64
 from collections import defaultdict
 from datetime import UTC, datetime
 from types import SimpleNamespace
@@ -19,12 +18,11 @@ from bot.db import Database
 from bot.handlers import Formatter
 
 OWNER, ADMIN, STRANGER = 1, 2, 99
-FAKE_PNG = b"\x89PNG-fake-image"
 
 
 def make_config(**over: Any) -> Config:
     base = dict(bot_token="123:TEST", owner_id=OWNER, submitter_ids=frozenset({ADMIN}),
-                openai_api_key="sk-test", mongo_url="mongodb://test", mongo_db_name="test")
+                anthropic_api_key="sk-ant-test", mongo_url="mongodb://test", mongo_db_name="test")
     base.update(over)
     return Config(**base)
 
@@ -73,30 +71,25 @@ class FakeBot:
         return call
 
 
-class FakeOpenAI:
-    """Mimics AsyncOpenAI.responses.create / images.generate. Queue outputs or exceptions."""
+class FakeClaude:
+    """Mimics AsyncAnthropic.beta.messages.create. Queue output texts or exceptions in ``outputs``."""
 
     def __init__(self) -> None:
-        self.text_outputs: list[Any] = []
-        self.image_outputs: list[Any] = []
-        self.text_calls: list[dict] = []
-        self.image_calls: list[dict] = []
-        self.responses = SimpleNamespace(create=self._create)
-        self.images = SimpleNamespace(generate=self._generate)
+        self.outputs: list[Any] = []
+        self.calls: list[dict] = []
+        self.beta = SimpleNamespace(messages=SimpleNamespace(create=self._create))
 
     async def _create(self, **kw: Any) -> Any:
-        self.text_calls.append(kw)
-        out = self.text_outputs.pop(0) if self.text_outputs else "Default headline\nDefault body"
+        self.calls.append(kw)
+        out = self.outputs.pop(0) if self.outputs else "Default headline\nDefault body"
         if isinstance(out, BaseException):
             raise out
-        return SimpleNamespace(output_text=out)
+        if isinstance(out, tuple):  # (stop_reason, text)
+            return SimpleNamespace(stop_reason=out[0], content=[SimpleNamespace(type="text", text=out[1])])
+        return SimpleNamespace(stop_reason="end_turn", content=[SimpleNamespace(type="text", text=out)])
 
-    async def _generate(self, **kw: Any) -> Any:
-        self.image_calls.append(kw)
-        out = self.image_outputs.pop(0) if self.image_outputs else FAKE_PNG
-        if isinstance(out, BaseException):
-            raise out
-        return SimpleNamespace(data=[SimpleNamespace(b64_json=base64.b64encode(out).decode())])
+    def prompt(self, i: int = -1) -> str:
+        return next(b["text"] for b in self.calls[i]["messages"][0]["content"] if b["type"] == "text")
 
     async def close(self) -> None:
         pass
@@ -118,8 +111,8 @@ def bot() -> FakeBot:
 
 
 @pytest.fixture
-def oai() -> FakeOpenAI:
-    return FakeOpenAI()
+def claude() -> FakeClaude:
+    return FakeClaude()
 
 
 @pytest.fixture
@@ -130,8 +123,8 @@ async def access(cfg: Config, db: Database) -> Access:
 
 
 @pytest.fixture
-def fmt(cfg: Config, db: Database, bot: FakeBot, oai: FakeOpenAI, access: Access) -> Formatter:
-    return Formatter(cfg, db, bot, PostAI(cfg, client=oai), access)
+def fmt(cfg: Config, db: Database, bot: FakeBot, claude: FakeClaude, access: Access) -> Formatter:
+    return Formatter(cfg, db, bot, PostAI(cfg, client=claude), access)
 
 
 _mid = iter(range(1, 10**6))

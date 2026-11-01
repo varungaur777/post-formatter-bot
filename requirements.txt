@@ -1,6 +1,6 @@
 # Runtime dependencies (pinned). Python 3.12.
 python-telegram-bot==21.11.1
-openai==3.42.0
+anthropic==2.3.0
 motor==3.7.1
 pymongo==4.19.0
 python-dotenv==1.2.4

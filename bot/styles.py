@@ -1,4 +1,4 @@
-"""Channel styles: the instructions the text model gets for each channel.
+"""Channel styles: the instructions Claude gets for each channel.
 
 Example posts in ``bot/styles/<style>_examples.txt`` (posts separated by a line with ``---``) are added to
 the prompt so the model copies the real tone. Empty or missing file = no examples.
@@ -18,7 +18,6 @@ class Style:
     label: str
     channel: str
     rules: str
-    image_hint: str
 
 
 COMMON_RULES = """\
@@ -48,7 +47,6 @@ Channel style (@spitting_fact - short facts and news):
   Hinglish (Roman script), English stays English. Do not translate.
 - 0-2 emojis in total, only where they fit. No hashtags unless the input had them.
 """,
-    image_hint="bold, eye-catching, realistic news-style image",
 )
 
 GEOSIGHT = Style(
@@ -67,7 +65,6 @@ Channel style (@GeoSight - geography, world affairs and current events, rules fr
   Usually 3-6 pointers.
 - Keep the language of the input (usually English). No hashtags unless the input had them.
 """,
-    image_hint="clean, informative illustration with a geography / world-map feel",
 )
 
 STYLES: dict[str, Style] = {s.key: s for s in (SPITTING, GEOSIGHT)}

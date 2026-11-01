@@ -14,8 +14,7 @@ DEFAULT_DB_NAME = "post_formatter_bot"
 # the channel-posting bot's database - this bot must never write there
 FORBIDDEN_DB_NAMES = frozenset({"channel_poster_bot"})
 
-DEFAULT_TEXT_MODEL = "gpt-6.1-terra"
-DEFAULT_IMAGE_MODEL = "gpt-image-2.5-flare"
+DEFAULT_AI_MODEL = "claude-opus-5-5"
 
 
 class ConfigError(Exception):
@@ -27,14 +26,11 @@ class Config:
     bot_token: str
     owner_id: int
     submitter_ids: frozenset[int]
-    openai_api_key: str
+    anthropic_api_key: str
     mongo_url: str
     mongo_db_name: str = DEFAULT_DB_NAME
-    text_model: str = DEFAULT_TEXT_MODEL
-    image_model: str = DEFAULT_IMAGE_MODEL
-    image_size: str = "1024x1024"
-    image_quality: str = "medium"
-    reasoning_effort: str = "low"
+    ai_model: str = DEFAULT_AI_MODEL
+    ai_effort: str = "low"
     max_runtime_minutes: float = 0
     runtime_profile: str = "persistent"
     log_level: str = "INFO"
@@ -88,9 +84,9 @@ def load_config(env: Mapping[str, str] | None = None) -> Config:
     token = _get(env, "BOT_TOKEN")
     if not token:
         raise ConfigError("BOT_TOKEN is required")
-    key = _get(env, "OPENAI_API_KEY")
+    key = _get(env, "ANTHROPIC_API_KEY")
     if not key:
-        raise ConfigError("OPENAI_API_KEY is required")
+        raise ConfigError("ANTHROPIC_API_KEY is required")
     mongo_url = _get(env, "MONGO_URL") or _get(env, "MONGO_URI")
     if not mongo_url:
         raise ConfigError("MONGO_URL is required")
@@ -112,14 +108,11 @@ def load_config(env: Mapping[str, str] | None = None) -> Config:
         bot_token=token,
         owner_id=_int(env, "OWNER_ID"),
         submitter_ids=parse_ids(_get(env, "SUBMITTER_IDS")),
-        openai_api_key=key,
+        anthropic_api_key=key,
         mongo_url=mongo_url,
         mongo_db_name=db_name,
-        text_model=_get(env, "OPENAI_TEXT_MODEL", DEFAULT_TEXT_MODEL),
-        image_model=_get(env, "OPENAI_IMAGE_MODEL", DEFAULT_IMAGE_MODEL),
-        image_size=_get(env, "OPENAI_IMAGE_SIZE", "1024x1024"),
-        image_quality=_get(env, "OPENAI_IMAGE_QUALITY", "medium"),
-        reasoning_effort=_get(env, "OPENAI_REASONING_EFFORT", "low").lower(),
+        ai_model=_get(env, "AI_MODEL", DEFAULT_AI_MODEL),
+        ai_effort=_get(env, "AI_EFFORT", "low").lower(),
         max_runtime_minutes=runtime,
         runtime_profile=profile,
         log_level=_get(env, "LOG_LEVEL", "INFO").upper(),

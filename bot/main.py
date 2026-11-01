@@ -3,7 +3,7 @@
 Start-up: config -> logging -> MongoDB -> instance lease (wait if another copy is live) -> deleteWebhook ->
 setMyCommands -> polling + lease heartbeat.
 Shutdown (SIGTERM/SIGINT, MAX_RUNTIME_MINUTES reached, or lease lost): stop polling, let running handlers
-finish, release the lease, close OpenAI + DB. Exit codes: 0 normal stop, 1 crash, 2 bad configuration.
+finish, release the lease, close the AI client + DB. Exit codes: 0 normal stop, 1 crash, 2 bad configuration.
 """
 
 from __future__ import annotations
@@ -87,8 +87,8 @@ async def run(cfg: Config) -> int:
             await app.start()
             await app.updater.start_polling(allowed_updates=[Update.MESSAGE, Update.CALLBACK_QUERY])
             lease.start_heartbeat(request_stop)
-            log.info("bot @%s v%s is polling (profile=%s, text=%s, image=%s)", app.bot.username, __version__,
-                     cfg.runtime_profile, cfg.text_model, cfg.image_model)
+            log.info("bot @%s v%s is polling (profile=%s, model=%s)", app.bot.username, __version__,
+                     cfg.runtime_profile, cfg.ai_model)
 
             await stop.wait()
 
@@ -112,7 +112,7 @@ def main() -> int:
         logging.basicConfig(level=logging.INFO)
         logging.getLogger("bot").error("configuration error: %s (see .env.example)", e)
         return 2
-    setup_logging(cfg.log_level, secrets=(cfg.bot_token, cfg.openai_api_key, cfg.mongo_url))
+    setup_logging(cfg.log_level, secrets=(cfg.bot_token, cfg.anthropic_api_key, cfg.mongo_url))
     try:
         return asyncio.run(run(cfg))
     except InvalidToken:

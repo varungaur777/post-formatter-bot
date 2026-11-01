@@ -1,10 +1,9 @@
-"""Telegram side: DM in -> style buttons -> OpenAI -> preview with buttons -> final post in the DM.
+"""Telegram side: DM in -> style buttons -> Claude -> preview with buttons -> final post in the DM.
 
 Draft document (collection ``drafts``):
-  {_id, user_id, chat_id, raw_text, photo_file_id, image_file_id, style, text, preview_msg_id,
+  {_id, user_id, chat_id, raw_text, photo_file_id, style, text, preview_msg_id,
    awaiting_edit, status: new|ready|done|cancelled, created_at, updated_at}
-Callback data: ``st:<draft>:<style>``, ``img:<draft>``, ``re:<draft>``, ``ed:<draft>``, ``ok:<draft>``,
-``x:<draft>``.
+Callback data: ``st:<draft>:<style>``, ``re:<draft>``, ``ed:<draft>``, ``ok:<draft>``, ``x:<draft>``.
 """
 
 from __future__ import annotations
@@ -41,10 +40,9 @@ def style_keyboard(draft_id: str) -> InlineKeyboardMarkup:
 
 def result_keyboard(draft_id: str) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup([
-        [InlineKeyboardButton(texts.BTN_IMAGE, callback_data=f"img:{draft_id}"),
-         InlineKeyboardButton(texts.BTN_REGEN, callback_data=f"re:{draft_id}")],
-        [InlineKeyboardButton(texts.BTN_EDIT, callback_data=f"ed:{draft_id}"),
-         InlineKeyboardButton(texts.BTN_DONE, callback_data=f"ok:{draft_id}")],
+        [InlineKeyboardButton(texts.BTN_REGEN, callback_data=f"re:{draft_id}"),
+         InlineKeyboardButton(texts.BTN_EDIT, callback_data=f"ed:{draft_id}")],
+        [InlineKeyboardButton(texts.BTN_DONE, callback_data=f"ok:{draft_id}")],
     ])
 
 
@@ -61,7 +59,7 @@ class Formatter:
     # ---- helpers -----------------------------------------------------------------------------
     @staticmethod
     def limit_for(draft: dict) -> int:
-        return CAPTION_LIMIT if draft.get("photo_file_id") or draft.get("image_file_id") else TEXT_TARGET
+        return CAPTION_LIMIT if draft.get("photo_file_id") else TEXT_TARGET
 
     async def _update(self, draft_id: str, **fields: Any) -> None:
         await self.db.drafts.update_one({"_id": draft_id}, {"$set": {**fields, "updated_at": utcnow()}})
@@ -82,29 +80,19 @@ class Formatter:
                 await self.bot.edit_message_reply_markup(chat_id=chat_id, message_id=message_id, reply_markup=None)
 
     async def send_post(self, chat_id: int, text: str, photo: Any = None,
-                        markup: InlineKeyboardMarkup | None = None) -> tuple[Message, Message | None]:
-        """Send the post (photo + caption, or text). Returns (message with the buttons, photo message)."""
+                        markup: InlineKeyboardMarkup | None = None) -> Message:
+        """Send the post (photo + caption, or text). Returns the message that carries the buttons."""
         body = h(text)
         if photo is None:
-            msg = await self.bot.send_message(chat_id, body, parse_mode=ParseMode.HTML, reply_markup=markup,
-                                              disable_web_page_preview=False)
-            return msg, None
-        if len(text) <= CAPTION_LIMIT:
-            msg = await self.bot.send_photo(chat_id, photo=photo, caption=body, parse_mode=ParseMode.HTML,
-                                            reply_markup=markup)
-            return msg, msg
-        # too long for a caption (text-only post that got an image): photo first, then the text
-        pmsg = await self.bot.send_photo(chat_id, photo=photo)
-        msg = await self.bot.send_message(chat_id, body, parse_mode=ParseMode.HTML, reply_markup=markup)
-        return msg, pmsg
+            return await self.bot.send_message(chat_id, body, parse_mode=ParseMode.HTML, reply_markup=markup)
+        return await self.bot.send_photo(chat_id, photo=photo, caption=body, parse_mode=ParseMode.HTML,
+                                         reply_markup=markup)
 
-    async def show_preview(self, draft: dict, photo_override: bytes | None = None) -> dict:
+    async def show_preview(self, draft: dict) -> dict:
         await self._drop_keyboard(draft["chat_id"], draft.get("preview_msg_id"))
-        photo = photo_override or draft.get("image_file_id") or draft.get("photo_file_id")
-        msg, pmsg = await self.send_post(draft["chat_id"], draft["text"], photo, result_keyboard(draft["_id"]))
+        msg = await self.send_post(draft["chat_id"], draft["text"], draft.get("photo_file_id"),
+                                   result_keyboard(draft["_id"]))
         fields: dict[str, Any] = {"preview_msg_id": msg.message_id, "status": "ready"}
-        if photo_override is not None and pmsg is not None and getattr(pmsg, "photo", None):
-            fields["image_file_id"] = pmsg.photo[-1].file_id
         await self._update(draft["_id"], **fields)
         draft.update(fields)
         return draft
@@ -146,7 +134,7 @@ class Formatter:
         now = utcnow()
         await self.db.drafts.insert_one({
             "_id": draft_id, "user_id": uid, "chat_id": msg.chat_id, "raw_text": raw, "photo_file_id": photo_id,
-            "image_file_id": None, "style": None, "text": None, "preview_msg_id": None, "awaiting_edit": False,
+            "style": None, "text": None, "preview_msg_id": None, "awaiting_edit": False,
             "status": "new", "created_at": now, "updated_at": now,
         })
         await msg.reply_text(texts.CHOOSE_STYLE, reply_markup=style_keyboard(draft_id))
@@ -212,8 +200,6 @@ class Formatter:
                 await self.run_format(draft)
             elif action == "re" and draft.get("text"):
                 await self.run_format(draft, regenerate=True)
-            elif action == "img" and draft.get("text"):
-                await self.make_image(draft)
             elif action == "ed" and draft.get("text"):
                 await self._update(draft_id, awaiting_edit=True)
                 await self.bot.send_message(draft["chat_id"], texts.ASK_EDIT, parse_mode=ParseMode.HTML)
@@ -227,22 +213,9 @@ class Formatter:
         finally:
             self.busy.discard(draft_id)
 
-    async def make_image(self, draft: dict) -> None:
-        style = STYLES[draft["style"]]
-        status = await self._status(draft["chat_id"], texts.IMAGE_WORKING)
-        try:
-            image = await self.ai.generate_image(style, draft["text"])
-        except AIError as e:
-            await self._clear_status(draft["chat_id"], status)
-            await self.bot.send_message(draft["chat_id"], texts.ERROR.format(error=h(e)), parse_mode=ParseMode.HTML)
-            return
-        await self._clear_status(draft["chat_id"], status)
-        await self.show_preview(draft, photo_override=image)
-
     async def finish(self, draft: dict) -> None:
         await self._drop_keyboard(draft["chat_id"], draft.get("preview_msg_id"))
-        photo = draft.get("image_file_id") or draft.get("photo_file_id")
-        await self.send_post(draft["chat_id"], draft["text"], photo)
+        await self.send_post(draft["chat_id"], draft["text"], draft.get("photo_file_id"))
         await self._update(draft["_id"], status="done", awaiting_edit=False)
         await self.bot.send_message(draft["chat_id"], texts.FINAL_NOTE, parse_mode=ParseMode.HTML)
 

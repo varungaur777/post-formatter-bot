@@ -9,9 +9,8 @@
 #
 # Stop the bot:   Actions -> bot -> "..." -> Disable workflow, then cancel the running run
 #                 (a cancelled run does NOT start the next one).
-# Secrets:        BOT_TOKEN, OWNER_ID, SUBMITTER_IDS, OPENAI_API_KEY, MONGO_URL, MONGO_DB_NAME (optional)
-# Variables:      OPENAI_TEXT_MODEL, OPENAI_IMAGE_MODEL, OPENAI_IMAGE_SIZE, OPENAI_IMAGE_QUALITY,
-#                 OPENAI_REASONING_EFFORT, LOG_LEVEL (all optional)
+# Secrets:        BOT_TOKEN, OWNER_ID, SUBMITTER_IDS, ANTHROPIC_API_KEY, MONGO_URL, MONGO_DB_NAME (optional)
+# Variables:      AI_MODEL, AI_EFFORT, LOG_LEVEL (all optional)
 
 name: bot
 
@@ -60,14 +59,11 @@ jobs:
           BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
           OWNER_ID: ${{ secrets.OWNER_ID }}
           SUBMITTER_IDS: ${{ secrets.SUBMITTER_IDS }}
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           MONGO_URL: ${{ secrets.MONGO_URL }}
           MONGO_DB_NAME: ${{ secrets.MONGO_DB_NAME }}
-          OPENAI_TEXT_MODEL: ${{ vars.OPENAI_TEXT_MODEL }}
-          OPENAI_IMAGE_MODEL: ${{ vars.OPENAI_IMAGE_MODEL }}
-          OPENAI_IMAGE_SIZE: ${{ vars.OPENAI_IMAGE_SIZE }}
-          OPENAI_IMAGE_QUALITY: ${{ vars.OPENAI_IMAGE_QUALITY }}
-          OPENAI_REASONING_EFFORT: ${{ vars.OPENAI_REASONING_EFFORT }}
+          AI_MODEL: ${{ vars.AI_MODEL }}
+          AI_EFFORT: ${{ vars.AI_EFFORT }}
           LOG_LEVEL: ${{ vars.LOG_LEVEL }}
         run: |
           if [ -z "$MONGO_URL" ]; then echo "::error::MONGO_URL secret is required on GitHub Actions"; fi

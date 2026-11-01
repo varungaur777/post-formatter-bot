@@ -1,9 +1,9 @@
-"""End-to-end flow through the Formatter with Telegram and OpenAI mocked."""
+"""End-to-end flow through the Formatter with Telegram and Claude mocked."""
 
 from __future__ import annotations
 
 from bot.handlers import Formatter
-from tests.conftest import ADMIN, FAKE_PNG, button, last_markup_data, photo_msg, text_msg
+from tests.conftest import ADMIN, button, last_markup_data, photo_msg, text_msg
 
 
 async def _draft_id(fmt: Formatter) -> str:
@@ -11,49 +11,39 @@ async def _draft_id(fmt: Formatter) -> str:
     return d["_id"]
 
 
-async def test_text_post_full_flow(fmt, bot, oai):
+async def test_text_post_full_flow(fmt, bot, claude):
     await fmt.on_content(text_msg(ADMIN, "india ne aaj chandrayaan 5 launch kiya, 3 baje", bot))
     did = await _draft_id(fmt)
     assert last_markup_data(bot) == [f"st:{did}:spitting", f"st:{did}:geosight", f"x:{did}"]
 
-    oai.text_outputs.append("Chandrayaan 5 launch 🚀\nIndia ne aaj 3 baje launch kiya")
+    claude.outputs.append("Chandrayaan 5 launch 🚀\nIndia ne aaj 3 baje launch kiya")
     await fmt.on_button(button(ADMIN, f"st:{did}:spitting", bot))
-    call = oai.text_calls[-1]
-    assert call["model"] == "gpt-6.1-terra"
-    assert "@spitting_fact" in call["instructions"]
-    assert "chandrayaan 5" in call["input"][0]["content"][0]["text"]
-    assert call["reasoning"] == {"effort": "low"}
+    call = claude.calls[-1]
+    assert call["model"] == "claude-opus-5-5"
+    assert "@spitting_fact" in call["system"]
+    assert "chandrayaan 5" in claude.prompt()
+    assert call["output_config"] == {"effort": "low"}
+    assert call["fallbacks"] == "default" and call["betas"] == ["server-side-fallback-2026-07-01"]
     preview = bot.of("send_message")[-1]
     assert preview["text"].startswith("Chandrayaan 5 launch")
-    assert last_markup_data(bot) == [f"img:{did}", f"re:{did}", f"ed:{did}", f"ok:{did}"]
+    assert last_markup_data(bot) == [f"re:{did}", f"ed:{did}", f"ok:{did}"]
 
     # edit with an instruction
     await fmt.on_button(button(ADMIN, f"ed:{did}", bot))
     assert (await fmt.db.drafts.find_one({"_id": did}))["awaiting_edit"] is True
-    oai.text_outputs.append("Chandrayaan 5 🚀\nIndia ne aaj 3 baje launch kiya")
+    claude.outputs.append("Chandrayaan 5 🚀\nIndia ne aaj 3 baje launch kiya")
     await fmt.on_content(text_msg(ADMIN, "headline chhoti karo", bot))
-    prompt = oai.text_calls[-1]["input"][0]["content"][0]["text"]
+    prompt = claude.prompt()
     assert "headline chhoti karo" in prompt and "Chandrayaan 5 launch 🚀" in prompt
     d = await fmt.db.drafts.find_one({"_id": did})
     assert d["text"].startswith("Chandrayaan 5 🚀") and d["awaiting_edit"] is False
     assert await fmt.db.drafts.count_documents({}) == 1  # the edit did not start a new draft
 
-    # generate an image -> preview becomes a photo with the caption
-    await fmt.on_button(button(ADMIN, f"img:{did}", bot))
-    assert oai.image_calls[-1]["model"] == "gpt-image-2.5-flare"
-    photo = bot.of("send_photo")[-1]
-    assert photo["photo"] == FAKE_PNG and photo["caption"].startswith("Chandrayaan 5")
-    d = await fmt.db.drafts.find_one({"_id": did})
-    assert d["image_file_id"].startswith("generated-")
-
-    # done -> clean final post (no buttons) using the stored file_id + forward note
-    n_before = len(bot.calls)
+    # done -> clean final post (no buttons) + forward note
     await fmt.on_button(button(ADMIN, f"ok:{did}", bot))
-    final = bot.of("send_photo")[-1]
-    assert final["photo"] == d["image_file_id"] and final.get("reply_markup") is None
-    assert "Priyanshipostbot" in bot.of("send_message")[-1]["text"]
-    assert "Join" not in final["caption"]
-    assert len(bot.calls) > n_before
+    final, note = bot.of("send_message")[-2:]
+    assert final["text"] == d["text"] and final.get("reply_markup") is None
+    assert "Priyanshipostbot" in note["text"]
     assert (await fmt.db.drafts.find_one({"_id": did}))["status"] == "done"
 
     # buttons of a finished draft are stale
@@ -61,50 +51,54 @@ async def test_text_post_full_flow(fmt, bot, oai):
     assert bot.of("answer_callback_query")[-1]["show_alert"] is True
 
 
-async def test_photo_post_uses_caption_limit_and_sends_photo_to_model(fmt, bot, oai):
+async def test_photo_post_uses_caption_limit_and_sends_photo_to_model(fmt, bot, claude):
     await fmt.on_content(photo_msg(ADMIN, "Japan me bhukamp 7.1", bot))
     did = await _draft_id(fmt)
-    oai.text_outputs.append("🇯🇵 Japan earthquake\n\n▪️ Magnitude 7.1")
+    claude.outputs.append("🇯🇵 Japan earthquake\n\n▪️ Magnitude 7.1")
     await fmt.on_button(button(ADMIN, f"st:{did}:geosight", bot))
-    call = oai.text_calls[-1]
-    assert "1024 characters" in call["instructions"] and "@GeoSight" in call["instructions"]
-    image_part = call["input"][0]["content"][1]
-    assert image_part["type"] == "input_image" and image_part["image_url"].startswith("data:image/jpeg;base64,")
+    call = claude.calls[-1]
+    assert "1024 characters" in call["system"] and "@GeoSight" in call["system"]
+    image = call["messages"][0]["content"][0]
+    assert image["type"] == "image" and image["source"]["media_type"] == "image/jpeg"
     assert bot.of("get_file")[-1]["file_id"] == "big-photo"
     preview = bot.of("send_photo")[-1]
     assert preview["photo"] == "big-photo" and preview["caption"].startswith("🇯🇵 Japan")
 
+    await fmt.on_button(button(ADMIN, f"ok:{did}", bot))
+    final = bot.of("send_photo")[-1]
+    assert final["photo"] == "big-photo" and final.get("reply_markup") is None
 
-async def test_html_is_escaped_in_preview(fmt, bot, oai):
+
+async def test_html_is_escaped_in_preview(fmt, bot, claude):
     await fmt.on_content(text_msg(ADMIN, "a < b & c", bot))
     did = await _draft_id(fmt)
-    oai.text_outputs.append("Maths fact\na < b & c")
+    claude.outputs.append("Maths fact\na < b & c")
     await fmt.on_button(button(ADMIN, f"st:{did}:spitting", bot))
     assert "a &lt; b &amp; c" in bot.of("send_message")[-1]["text"]
 
 
-async def test_regenerate_passes_previous_version(fmt, bot, oai):
+async def test_regenerate_passes_previous_version(fmt, bot, claude):
     await fmt.on_content(text_msg(ADMIN, "raw", bot))
     did = await _draft_id(fmt)
-    oai.text_outputs += ["First version\nbody", "Second version\nbody"]
+    claude.outputs += ["First version\nbody", "Second version\nbody"]
     await fmt.on_button(button(ADMIN, f"st:{did}:spitting", bot))
     await fmt.on_button(button(ADMIN, f"re:{did}", bot))
-    assert "First version" in oai.text_calls[-1]["input"][0]["content"][0]["text"]
+    assert "First version" in claude.prompt()
     assert (await fmt.db.drafts.find_one({"_id": did}))["text"].startswith("Second version")
 
 
-async def test_ai_error_is_shown_with_retry_buttons(fmt, bot, oai):
+async def test_ai_error_is_shown_with_retry_buttons(fmt, bot, claude):
+    import anthropic
     import httpx2
-    import openai
 
-    req = httpx2.Request("POST", "https://api.openai.com/v1/responses")
-    oai.text_outputs.append(openai.RateLimitError("quota", response=httpx2.Response(429, request=req),
-                                                  body={"code": "insufficient_quota"}))
+    req = httpx2.Request("POST", "https://api.anthropic.com/v1/messages")
+    claude.outputs.append(anthropic.BadRequestError("Your credit balance is too low",
+                                                    response=httpx2.Response(400, request=req), body=None))
     await fmt.on_content(text_msg(ADMIN, "raw", bot))
     did = await _draft_id(fmt)
     await fmt.on_button(button(ADMIN, f"st:{did}:geosight", bot))
     err = bot.of("send_message")[-1]
-    assert "billing" in err["text"]
+    assert "credit" in err["text"]
     assert last_markup_data(bot)[0] == f"st:{did}:spitting"  # can pick a style again
 
 
@@ -115,7 +109,7 @@ async def test_other_users_cannot_press_my_buttons(fmt, bot):
     assert bot.of("answer_callback_query")[-1]["show_alert"] is True
 
 
-async def test_cancel_and_cancel_edit(fmt, bot, oai):
+async def test_cancel_and_cancel_edit(fmt, bot, claude):
     await fmt.on_content(text_msg(ADMIN, "raw", bot))
     did = await _draft_id(fmt)
     await fmt.on_button(button(ADMIN, f"st:{did}:spitting", bot))
@@ -132,16 +126,12 @@ async def test_album_only_first_photo(fmt, bot):
     assert await fmt.db.drafts.count_documents({}) == 1
 
 
-async def test_long_text_with_generated_image_goes_as_two_messages(fmt, bot, oai):
+async def test_refusal_is_reported(fmt, bot, claude):
     await fmt.on_content(text_msg(ADMIN, "raw", bot))
     did = await _draft_id(fmt)
-    long_text = "Headline\n" + "x" * 1500
-    oai.text_outputs.append(long_text)
+    claude.outputs.append(("refusal", ""))
     await fmt.on_button(button(ADMIN, f"st:{did}:spitting", bot))
-    await fmt.on_button(button(ADMIN, f"img:{did}", bot))
-    assert "caption" not in bot.of("send_photo")[-1]
-    assert bot.of("send_message")[-1]["text"] == long_text
-    assert (await fmt.db.drafts.find_one({"_id": did}))["image_file_id"]
+    assert "mana" in bot.of("send_message")[-1]["text"]
 
 
 async def test_handlers_guard_and_owner_commands(cfg, fmt, bot, access):

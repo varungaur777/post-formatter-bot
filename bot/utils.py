@@ -32,7 +32,7 @@ def h(text: Any) -> str:
 
 
 class RedactFilter(logging.Filter):
-    """Never let the bot token, the OpenAI key or the Mongo URL reach a log line."""
+    """Never let the bot token, the Claude API key or the Mongo URL reach a log line."""
 
     def __init__(self, secrets: Iterable[str]) -> None:
         super().__init__()
@@ -62,5 +62,5 @@ def setup_logging(level: str, *, secrets: Iterable[str] = ()) -> None:
     stream.addFilter(RedactFilter(secrets))
     root.addHandler(stream)
     # httpx logs every request URL, and Telegram URLs contain the token
-    for noisy in ("httpx", "httpcore", "httpx2", "openai", "apscheduler"):
+    for noisy in ("httpx", "httpcore", "httpx2", "anthropic", "apscheduler"):
         logging.getLogger(noisy).setLevel(logging.WARNING)

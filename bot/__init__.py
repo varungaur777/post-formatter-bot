@@ -1,3 +1,3 @@
-"""Post formatter bot: raw content in, channel-ready post (and optional image) out."""
+"""Post formatter bot: raw content in, channel-ready post out (formatted by Claude)."""
 
 __version__ = "1.0.0"
