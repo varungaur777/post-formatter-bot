@@ -56,7 +56,7 @@ pehle agla run start kar deta hai. MongoDB lease ensure karta hai ki ek time par
 | Secret | Kya hai |
 |---|---|
 | `BOT_TOKEN` | @BotFather se naye bot ka token |
-| `OWNER_ID` | `7364684102` |
+| `OWNER_ID` | `8322550258` |
 | `GROUP_CHAT_ID` | woh group jahan sab members bot use kar sakein (group mein `/id` se milega) |
 | `ANTHROPIC_API_KEY` | platform.claude.com → API keys (credits add hone chahiye) |
 | `MONGO_URL` | MongoDB Atlas connection string (purane bot wala cluster chalega) |

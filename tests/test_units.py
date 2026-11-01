@@ -16,7 +16,7 @@ from bot.styles import GEOSIGHT, SPITTING, load_examples, system_prompt
 from bot.utils import RedactFilter
 from tests.conftest import ADMIN, GROUP, OWNER, STRANGER, make_config
 
-BASE_ENV = {"BOT_TOKEN": "1:x", "OWNER_ID": "7364684102", "ANTHROPIC_API_KEY": "sk-ant-x", "MONGO_URL": "mongodb://x"}
+BASE_ENV = {"BOT_TOKEN": "1:x", "OWNER_ID": "8322550258", "ANTHROPIC_API_KEY": "sk-ant-x", "MONGO_URL": "mongodb://x"}
 
 
 def _err(cls, status, body=None):
