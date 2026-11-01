@@ -86,9 +86,11 @@ class FakeClaude:
         out = self.outputs.pop(0) if self.outputs else "Default headline\nDefault body"
         if isinstance(out, BaseException):
             raise out
-        if isinstance(out, tuple):  # (stop_reason, text)
-            return SimpleNamespace(stop_reason=out[0], content=[SimpleNamespace(type="text", text=out[1])])
-        return SimpleNamespace(stop_reason="end_turn", content=[SimpleNamespace(type="text", text=out)])
+        stop, text = out if isinstance(out, tuple) else ("end_turn", out)  # (stop_reason, text)
+        usage = SimpleNamespace(input_tokens=1000, output_tokens=500, cache_creation_input_tokens=0,
+                                cache_read_input_tokens=None)
+        return SimpleNamespace(stop_reason=stop, model=kw["model"], usage=usage,
+                               content=[SimpleNamespace(type="text", text=text)])
 
     def prompt(self, i: int = -1) -> str:
         return next(b["text"] for b in self.calls[i]["messages"][0]["content"] if b["type"] == "text")

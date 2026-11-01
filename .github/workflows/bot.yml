@@ -10,7 +10,7 @@
 # Stop the bot:   Actions -> bot -> "..." -> Disable workflow, then cancel the running run
 #                 (a cancelled run does NOT start the next one).
 # Secrets:        BOT_TOKEN, OWNER_ID, GROUP_CHAT_ID, ANTHROPIC_API_KEY, MONGO_URL, MONGO_DB_NAME (optional)
-# Variables:      AI_MODEL, AI_EFFORT, LOG_LEVEL (all optional)
+# Variables:      AI_MODEL, AI_EFFORT, USD_INR, LOG_LEVEL (all optional)
 
 name: bot
 
@@ -64,6 +64,7 @@ jobs:
           MONGO_DB_NAME: ${{ secrets.MONGO_DB_NAME }}
           AI_MODEL: ${{ vars.AI_MODEL }}
           AI_EFFORT: ${{ vars.AI_EFFORT }}
+          USD_INR: ${{ vars.USD_INR }}
           LOG_LEVEL: ${{ vars.LOG_LEVEL }}
         run: |
           if [ -z "$MONGO_URL" ]; then echo "::error::MONGO_URL secret is required on GitHub Actions"; fi

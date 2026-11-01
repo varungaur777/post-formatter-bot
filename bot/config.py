@@ -37,6 +37,7 @@ class Config:
     lease_heartbeat_seconds: float = 30.0
     lease_expiry_seconds: float = 120.0
     draft_ttl_days: int = 7
+    usd_inr: float = 88.0
 
     def is_owner(self, user_id: int | None) -> bool:
         return user_id is not None and user_id == self.owner_id
@@ -119,4 +120,5 @@ def load_config(env: Mapping[str, str] | None = None) -> Config:
         lease_heartbeat_seconds=heartbeat,
         lease_expiry_seconds=expiry,
         draft_ttl_days=_int(env, "DRAFT_TTL_DAYS", default=7),
+        usd_inr=_float(env, "USD_INR", 88.0),
     )

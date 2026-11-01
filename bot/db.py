@@ -2,6 +2,7 @@
 
 Collections:
   drafts  - one document per post being formatted (deleted automatically after DRAFT_TTL_DAYS)
+  usage   - Claude API calls with tokens and estimated cost, and finished posts (see bot.usage)
   lease   - single-instance lease (see bot.lease)
 """
 
@@ -23,6 +24,7 @@ class Database:
         self.client = client
         self.ttl_days = ttl_days
         self.drafts = db["drafts"]
+        self.usage = db["usage"]
         self.lease = db["lease"]
 
     @classmethod
@@ -35,6 +37,7 @@ class Database:
     async def ensure_indexes(self) -> None:
         await self.drafts.create_index("created_at", expireAfterSeconds=self.ttl_days * 86400)
         await self.drafts.create_index([("user_id", 1), ("awaiting_edit", 1)])
+        await self.usage.create_index("at")
 
     async def close(self) -> None:
         if self.client is not None:

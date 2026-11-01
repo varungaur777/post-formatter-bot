@@ -26,6 +26,7 @@ from bot.ai import AIError, PostAI
 from bot.config import Config
 from bot.db import Database
 from bot.styles import POST
+from bot.usage import UsageStore
 from bot.utils import CAPTION_LIMIT, TEXT_LIMIT, h, utcnow
 
 log = logging.getLogger(__name__)
@@ -66,11 +67,12 @@ def post_html(text: str) -> str:
 
 
 class Formatter:
-    def __init__(self, cfg: Config, db: Database, bot: Any, ai: PostAI) -> None:
+    def __init__(self, cfg: Config, db: Database, bot: Any, ai: PostAI, usage: UsageStore | None = None) -> None:
         self.cfg = cfg
         self.db = db
         self.bot = bot
         self.ai = ai
+        self.usage = usage
         self.busy: set[str] = set()
 
     # ---- helpers -----------------------------------------------------------------------------
@@ -241,7 +243,22 @@ class Formatter:
         await self._drop_keyboard(draft["chat_id"], draft.get("preview_msg_id"))
         await self.send_post(draft["chat_id"], draft["text"], draft.get("photo_file_id"))
         await self._update(draft["_id"], status="done", awaiting_edit=False)
+        if self.usage is not None:
+            await self.usage.record_post()
         await self.bot.send_message(draft["chat_id"], texts.FINAL_NOTE, parse_mode=ParseMode.HTML)
+
+    async def wallet_text(self) -> str:
+        """Owner's spend report (estimate from token counts)."""
+        totals = await self.usage.summary() if self.usage is not None else {}
+
+        def line(label: str, key: str) -> str:
+            t = totals[key]
+            return texts.WALLET_LINE.format(label=label, usd=t.usd, inr=t.usd * self.cfg.usd_inr, calls=t.calls,
+                                            posts=t.posts)
+
+        return texts.WALLET.format(today=line("Today", "today"), month=line("This month", "month"),
+                                   total=line("All time", "total"), model=h(self.cfg.ai_model),
+                                   rate=self.cfg.usd_inr)
 
     async def cancel_edit(self, user_id: int) -> bool:
         res = await self.db.drafts.update_many({"user_id": user_id, "awaiting_edit": True},
@@ -281,6 +298,11 @@ def register(app: Application, cfg: Config, fmt: Formatter, access: Access) -> N
         done = await fmt.cancel_edit(update.effective_user.id)
         await update.effective_message.reply_text(texts.EDIT_CANCELLED if done else texts.NOTHING_TO_CANCEL)
 
+    async def wallet(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+        if not cfg.is_owner(update.effective_user.id):
+            return
+        await update.effective_message.reply_text(await fmt.wallet_text(), parse_mode=ParseMode.HTML)
+
     async def format_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         msg = update.effective_message
         extra = parse_format(msg.text or msg.caption, msg.get_bot().username)
@@ -306,6 +328,7 @@ def register(app: Application, cfg: Config, fmt: Formatter, access: Access) -> N
     app.add_handler(CommandHandler(["start", "help"], start, filters=where))
     app.add_handler(CommandHandler("id", my_id))
     app.add_handler(CommandHandler("cancel", cancel, filters=where))
+    app.add_handler(CommandHandler(["wallet", "usage"], wallet, filters=filters.ChatType.PRIVATE))
     is_format = filters.Regex(_FORMAT) | filters.CaptionRegex(_FORMAT)
     app.add_handler(MessageHandler(where & is_format, format_cmd))
     app.add_handler(MessageHandler(where & ~filters.COMMAND & ~filters.StatusUpdate.ALL, plain))

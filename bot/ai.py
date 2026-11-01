@@ -15,6 +15,7 @@ import anthropic
 
 from bot.config import Config
 from bot.styles import Style, system_prompt
+from bot.usage import UsageStore
 
 log = logging.getLogger(__name__)
 
@@ -69,10 +70,11 @@ def _map_error(e: Exception) -> AIError:
 
 
 class PostAI:
-    def __init__(self, cfg: Config, client: Any = None) -> None:
+    def __init__(self, cfg: Config, client: Any = None, usage: UsageStore | None = None) -> None:
         self.cfg = cfg
         self.client = client or anthropic.AsyncAnthropic(api_key=cfg.anthropic_api_key, timeout=120.0,
                                                          max_retries=2)
+        self.usage = usage
 
     async def close(self) -> None:
         close = getattr(self.client, "close", None)
@@ -97,6 +99,11 @@ class PostAI:
             )
         except anthropic.AnthropicError as e:
             raise _map_error(e) from None
+        if self.usage is not None and getattr(resp, "usage", None) is not None:
+            try:  # billed even when refused; the model that answered may be a fallback model
+                await self.usage.record_call(getattr(resp, "model", None) or self.cfg.ai_model, resp.usage)
+            except Exception:
+                log.warning("could not record API usage", exc_info=True)
         if resp.stop_reason == "refusal":
             raise AIError("Claude declined to format this content.")
         text = "".join(b.text for b in resp.content if b.type == "text")

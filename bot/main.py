@@ -14,8 +14,8 @@ import signal
 import sys
 
 from dotenv import load_dotenv
-from telegram import BotCommand, Update
-from telegram.error import InvalidToken
+from telegram import BotCommand, BotCommandScopeChat, Update
+from telegram.error import InvalidToken, TelegramError
 from telegram.ext import Application, ContextTypes
 
 from bot import __version__, texts
@@ -25,6 +25,7 @@ from bot.config import Config, ConfigError, load_config
 from bot.db import Database
 from bot.handlers import Formatter, register
 from bot.lease import Lease
+from bot.usage import UsageStore
 from bot.utils import setup_logging
 
 log = logging.getLogger("bot")
@@ -75,14 +76,21 @@ async def run(cfg: Config) -> int:
 
         access = Access(cfg)
         app = build_application(cfg)
-        ai = PostAI(cfg)
-        fmt = Formatter(cfg, db, app.bot, ai)
+        usage = UsageStore(db.usage)
+        ai = PostAI(cfg, usage=usage)
+        fmt = Formatter(cfg, db, app.bot, ai, usage)
         register(app, cfg, fmt, access)
         app.add_error_handler(_on_error)
 
         async with app:  # initialize() ... shutdown()
             await app.bot.delete_webhook(drop_pending_updates=False)
             await app.bot.set_my_commands([BotCommand(c, d) for c, d in texts.BOT_COMMANDS])
+            try:  # fails if the owner never opened a chat with the bot - not worth stopping for
+                await app.bot.set_my_commands(
+                    [BotCommand(c, d) for c, d in texts.BOT_COMMANDS + texts.OWNER_COMMANDS],
+                    scope=BotCommandScopeChat(cfg.owner_id))
+            except TelegramError as e:
+                log.warning("could not set the owner's command menu: %s", e)
             await app.start()
             await app.updater.start_polling(allowed_updates=[Update.MESSAGE, Update.CALLBACK_QUERY])
             lease.start_heartbeat(request_stop)

@@ -7,6 +7,8 @@ BOT_COMMANDS = [
     ("cancel", "Cancel a pending edit"),
     ("id", "Show your user ID / this group's chat ID"),
 ]
+# shown only in the owner's private chat
+OWNER_COMMANDS = [("wallet", "How much the bot has spent on Claude")]
 
 HELP = (
     "<b>Post Formatter</b>\n\n"
@@ -48,3 +50,11 @@ BTN_EDIT = "✏️ Edit"
 BTN_DONE = "✅ Done"
 BTN_CANCEL = "❌ Cancel"
 BTN_RETRY = "🔁 Try again"
+
+WALLET = (
+    "💰 <b>Claude spend</b> (estimate)\n\n"
+    "{today}\n{month}\n{total}\n\n"
+    "Model: <code>{model}</code> · ₹ at {rate:g} per $\n"
+    "Exact bill and remaining balance: platform.claude.com → Billing"
+)
+WALLET_LINE = "<b>{label}:</b> ${usd:.3f} (≈ ₹{inr:.0f}) · {posts} posts · {calls} AI requests"

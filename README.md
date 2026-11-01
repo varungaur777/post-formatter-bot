@@ -19,7 +19,11 @@ usi chat mein bhejta hai (owner ka DM ya aapka group), aap use @Priyanshipostbot
    - ❌ **Cancel** – draft band
 3. Final post ko **@Priyanshipostbot** ko forward kar do. Footer / "Join" line woh bot khud lagata hai.
 
-Commands: `/format` `/start` `/help` `/cancel` (edit cancel) `/id` (apna user ID, group mein group ka chat ID bhi).
+Commands: `/format` `/wallet` (owner) `/start` `/help` `/cancel` (edit cancel) `/id` (apna user ID, group mein group ka chat ID bhi).
+
+**Kharcha dekhna (sirf owner, DM mein):** `/wallet` bhejo. Bot batayega aaj, is mahine aur ab tak Claude par
+kitna kharcha hua ($ aur ₹ mein), kitni posts bani aur kitni AI requests gayi. Ye tokens se nikala gaya
+andaaza hai. Asli bill aur bacha hua balance platform.claude.com → Billing par dikhta hai.
 
 **Kaun use kar sakta hai:**
 - **DM mein sirf owner** (`OWNER_ID`). Koi aur DM kare to bot sirf mana karta hai aur uska user ID dikha deta hai.
@@ -79,6 +83,7 @@ gh secret set ANTHROPIC_API_KEY -R varungaur777/post-formatter-bot
 |---|---|---|
 | `AI_MODEL` | `claude-opus-5-5` | Claude model (sasta: `claude-sonnet-5-5`, sabse sasta: `claude-haiku-5-5`) |
 | `AI_EFFORT` | `low` | Claude kitna sochta hai: `low` / `medium` / `high` |
+| `USD_INR` | `88` | `/wallet` mein ₹ dikhane ke liye 1 $ = kitne ₹ |
 
 ⚠️ **Claude.ai ka subscription (Pro/Max) API key nahi hai.** API alag hai: platform.claude.com par
 account → Billing mein credits add karo → API Keys se key banao (`sk-ant-...`).
