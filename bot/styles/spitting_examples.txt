@@ -1,0 +1,2 @@
+# Real @spitting_fact posts go here, separated by a line with only --- on it.
+# Lines starting with # are ignored. Up to 5 posts are sent to the model as examples.
