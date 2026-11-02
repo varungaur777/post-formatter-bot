@@ -42,13 +42,13 @@ async def test_calls_are_recorded_and_summed(db, claude):
     await ai.format_post(POST, "raw", limit=1000)            # last month
     clock.now += timedelta(days=33)
 
-    one = cost_usd("claude-opus-5-5", 1000, 500)  # $0.014
+    one = cost_usd("claude-haiku-5-5", 1000, 500)  # $0.00035
     t = await store.summary()
     assert t["today"].calls == 1 and t["today"].usd == pytest.approx(one) and t["today"].posts == 0
     assert t["month"].calls == 2 and t["month"].posts == 1
     assert t["total"].calls == 3 and t["total"].usd == pytest.approx(3 * one)
     doc = await db.usage.find_one({"type": "call"})
-    assert doc["model"] == "claude-opus-5-5" and doc["input_tokens"] == 1000 and doc["cache_read_input_tokens"] == 0
+    assert doc["model"] == "claude-haiku-5-5" and doc["input_tokens"] == 1000 and doc["cache_read_input_tokens"] == 0
 
 
 async def test_refused_call_is_still_counted(db, claude):
@@ -71,8 +71,8 @@ async def test_done_counts_a_post_and_wallet_text(cfg, db, bot, claude):
 
     await fmt.on_button(button(OWNER, f"ok:{d['_id']}", bot))
     text = await fmt.wallet_text()
-    assert "Today:</b> $0.014 (≈ ₹1) · 1 posts · 1 AI requests" in text
-    assert "claude-opus-5-5" in text and "platform.claude.com" in text
+    assert "Today:</b> $0.0003 (≈ ₹0.03) · 1 posts · 1 AI requests" in text
+    assert "claude-haiku-5-5" in text and "platform.claude.com" in text
 
 
 async def test_wallet_command_is_owner_only(cfg, db, bot, claude, access):

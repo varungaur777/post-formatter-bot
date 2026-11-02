@@ -3,6 +3,7 @@
 Collections:
   drafts  - one document per post being formatted (deleted automatically after DRAFT_TTL_DAYS)
   usage   - Claude API calls with tokens and estimated cost, and finished posts (see bot.usage)
+  groups  - groups the owner authorized with /auth  {_id: chat_id, title, by, at}
   lease   - single-instance lease (see bot.lease)
 """
 
@@ -25,6 +26,7 @@ class Database:
         self.ttl_days = ttl_days
         self.drafts = db["drafts"]
         self.usage = db["usage"]
+        self.groups = db["groups"]
         self.lease = db["lease"]
 
     @classmethod

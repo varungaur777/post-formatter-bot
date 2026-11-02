@@ -27,11 +27,17 @@ andaaza hai. Asli bill aur bacha hua balance platform.claude.com → Billing par
 
 **Kaun use kar sakta hai:**
 - **DM mein sirf owner** (`OWNER_ID`). Koi aur DM kare to bot sirf mana karta hai aur uska user ID dikha deta hai.
-- **Ek specific group** (`GROUP_CHAT_ID`) – us group ka har member use kar sakta hai.
+- **Authorized group** – us group ka har member use kar sakta hai. Group 2 tarike se authorize hota hai:
+  `GROUP_CHAT_ID` secret se, ya owner group mein `/auth` bheje (neeche dekho).
 - Kisi aur group mein bot chup rehta hai.
 - Preview ke buttons sirf wahi daba sakta hai jisne woh content bheja tha.
 
-**Group setup:**
+**Naya group jodna (sirf owner):**
+1. Bot ko group mein add karke **admin** banao.
+2. Group mein `/auth` bhejo. Bot restart ke baad bhi yaad rakhta hai.
+3. Hatana ho to group mein `/unauth`. Saare groups ki list: DM mein `/groups`.
+
+**Group setup (`GROUP_CHAT_ID` wala tarika):**
 1. Bot ko group mein add karo aur **admin bana do** (`/format` bina admin ke bhi chalta hai, par ✏️ Edit ke
    baad wala normal message bot tabhi dekh pata hai jab woh admin ho).
    Ya @BotFather → `/setprivacy` → bot chuno → **Disable**.
@@ -45,9 +51,9 @@ Bot sirf `/format` wale messages par kaam karta hai, baaki group chat ko ignore 
 Rules @GeoSight admins ke hain:
 - Line 1: heading, shuru mein main country ka flag (🇮🇳). Ye heading bot apne aap **bold** karta hai.
 - Neeche short pointers: ▪️ main points, 🔹 details, 🔺 sabse important point.
-- Simple aur samajhne mein aasaan, quality over quantity.
+- Crispy, attractive aur short, par matter ka core context nahi jaata. Simple aur samajhne mein aasaan, quality over quantity.
 - Hamesha English. Hindi/Hinglish input bhi English mein translate hota hai (naam, jagah, @mention waise hi rehte hain).
-- Koi fact, naam, number, link ya @mention badla ya banaya nahi jaata. Photo wali post max 1024 characters.
+- Koi fact badla ya banaya nahi jaata; zaroori naam, number, link aur @mention rehte hain, chhoti details hat sakti hain. Photo wali post max 1024 characters.
 - Footer / "Join" / "Follow" line nahi lagti – woh @Priyanshipostbot lagata hai.
   (Do posts ke beech 30-35 minute ka gap bhi @Priyanshipostbot ka kaam hai.)
 
@@ -81,7 +87,7 @@ gh secret set ANTHROPIC_API_KEY -R varungaur777/post-formatter-bot
 
 | Variable | Default | Matlab |
 |---|---|---|
-| `AI_MODEL` | `claude-opus-5-5` | Claude model (sasta: `claude-sonnet-5-5`, sabse sasta: `claude-haiku-5-5`) |
+| `AI_MODEL` | `claude-haiku-5-5` | Claude model. Sabse sasta yahi hai (ek post ~$0.0002). Mehnge: `claude-sonnet-5-5`, `claude-opus-5-5` |
 | `AI_EFFORT` | `low` | Claude kitna sochta hai: `low` / `medium` / `high` |
 | `USD_INR` | `88` | `/wallet` mein ₹ dikhane ke liye 1 $ = kitne ₹ |
 

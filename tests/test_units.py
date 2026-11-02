@@ -28,7 +28,7 @@ def _err(cls, status, body=None):
 def test_config_defaults():
     cfg = load_config(BASE_ENV)
     assert cfg.mongo_db_name == "post_formatter_bot"
-    assert cfg.ai_model == "claude-opus-5-5" and cfg.ai_effort == "low"
+    assert cfg.ai_model == "claude-haiku-5-5" and cfg.ai_effort == "low"
     assert cfg.max_runtime_minutes == 0
 
 
@@ -65,7 +65,7 @@ def test_repo_example_files_parse():
 def test_system_prompt_contents():
     p = system_prompt(POST, 1024, examples=["🇮🇳 Example post"])
     assert "1024" in p and "▪️" in p and "🔹" in p and "🔺" in p and "flag" in p
-    assert "🇮🇳 Example post" in p and "Never invent" in p
+    assert "🇮🇳 Example post" in p and "never invent" in p and "crisp" in p
     assert "English" in p and "translate" in p
     assert "Example" not in system_prompt(POST, 4000, examples=[])
 
@@ -91,7 +91,14 @@ async def test_format_fails_when_still_too_long(claude):
         await ai.format_post(POST, "raw", limit=100)
 
 
-async def test_cheaper_model_without_fallback_and_default_effort(claude):
+async def test_fallback_only_on_models_that_accept_it(claude):
+    ai = PostAI(make_config(ai_model="claude-opus-5-5"), client=claude)
+    await ai.format_post(POST, "raw", limit=1000)
+    assert claude.calls[0]["fallbacks"] == "default"
+    assert claude.calls[0]["betas"] == ["server-side-fallback-2026-07-01"]
+
+
+async def test_haiku_without_fallback_and_default_effort(claude):
     ai = PostAI(make_config(ai_model="claude-haiku-5-5", ai_effort=""), client=claude)
     await ai.format_post(POST, "raw", limit=1000)
     call = claude.calls[0]
@@ -116,10 +123,30 @@ async def test_error_messages(claude, exc, needle):
 
 
 # ---- access --------------------------------------------------------------------------------------
-def test_access():
+async def test_auth_groups_survive_restart_and_migrate(db):
     from telegram import Chat
 
-    a = Access(make_config())
+    cfg = make_config()
+    a = Access(cfg, db)
+    new = Chat(id=-777, type="supergroup")
+    assert not a.allowed(new, STRANGER)
+    await a.authorize(-777, "News", OWNER)
+    assert a.allowed(new, STRANGER)
+
+    b = Access(cfg, db)  # after a restart
+    await b.load()
+    assert b.allowed(new, STRANGER) and (-777, "News") in b.listing()
+    await b.migrate(-777, -100777)
+    assert not b.allowed(new, STRANGER) and b.allowed(Chat(id=-100777, type="supergroup"), STRANGER)
+    assert await b.revoke(-100777) == "removed" and not b.allowed(Chat(id=-100777, type="supergroup"), STRANGER)
+    assert await b.revoke(-100777) == "missing"
+    assert await b.revoke(GROUP) == "env" and b.allowed(Chat(id=GROUP, type="supergroup"), STRANGER)
+
+
+def test_access(db):
+    from telegram import Chat
+
+    a = Access(make_config(), db)
     dm = Chat(id=5, type="private")
     assert a.allowed(dm, OWNER) and not a.allowed(dm, ADMIN) and not a.allowed(dm, STRANGER)
     assert a.allowed(Chat(id=GROUP, type="supergroup"), STRANGER)

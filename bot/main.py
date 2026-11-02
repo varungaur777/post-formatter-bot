@@ -74,7 +74,8 @@ async def run(cfg: Config) -> int:
             log.info("stopped before the lease became free")
             return 0
 
-        access = Access(cfg)
+        access = Access(cfg, db)
+        await access.load()
         app = build_application(cfg)
         usage = UsageStore(db.usage)
         ai = PostAI(cfg, usage=usage)

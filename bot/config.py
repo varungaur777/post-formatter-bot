@@ -14,7 +14,7 @@ DEFAULT_DB_NAME = "post_formatter_bot"
 # the channel-posting bot's database - this bot must never write there
 FORBIDDEN_DB_NAMES = frozenset({"channel_poster_bot"})
 
-DEFAULT_AI_MODEL = "claude-opus-5-5"
+DEFAULT_AI_MODEL = "claude-haiku-5-5"
 
 
 class ConfigError(Exception):

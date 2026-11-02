@@ -27,8 +27,12 @@ and return ONE finished post.
 Hard rules:
 - Write the post in clear, simple English. If the input is in Hindi or Hinglish, translate it into natural
   English (names, places and @mentions stay as they are).
-- Keep every fact, name, number, date, link and @mention that belongs to the news itself. Never invent,
-  guess or add facts that are not in the input (the photo may only help you understand the input).
+- Make the post crisp, attractive and short without losing the core context of the matter: it should read
+  clearly shorter than the input. Keep what the story is about (the key facts, names, numbers, dates) and
+  every link and @mention that belongs to the news; leave out secondary details, repetition and filler.
+- Never change a fact, and never invent, guess or add facts that are not in the input (the photo may only
+  help you understand the input). Keep the source's certainty: "reported", "may" or "so far" stay as they
+  are, and "9 injured" must not become "at least 9 injured".
 - Remove channel promotion lines such as "Join @xyz", "Follow us", "Share", sign-offs or footers - the
   posting bot adds the channel footer itself.
 - Plain text only: no Markdown (no **, __, #), no HTML tags, no code blocks, no surrounding quotes.
@@ -44,13 +48,13 @@ POST = Style(
     rules="""\
 Format (rules from the channel admins):
 - Keep it simple and easy to understand. Quality over quantity: only the important points, merge
-  repeated ones, but keep every key fact and number.
+  repeated ones.
 - Line 1: the main heading, starting with the flag emoji of the main country involved (e.g. 🇮🇳 for
   India, 🇺🇸 for the USA; two flags if two countries are central). If no country fits, use 🌍.
   Nothing else on line 1.
 - After a blank line, the details as short pointers, one per line, using these markers:
   ▪️ for main points, 🔹 for supporting details / sub-points, 🔺 for the most important or alarming point.
-  Usually 3-6 pointers.
+  Usually 2-4 pointers, each one short and punchy (about 12 words at most).
 - No hashtags unless the input had them.
 """,
 )

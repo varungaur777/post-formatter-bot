@@ -15,7 +15,7 @@ import re
 import secrets
 from typing import Any
 
-from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Message, Update
+from telegram import ChatMember, InlineKeyboardButton, InlineKeyboardMarkup, Message, Update
 from telegram.constants import ParseMode
 from telegram.error import TelegramError
 from telegram.ext import Application, CallbackQueryHandler, CommandHandler, ContextTypes, MessageHandler, filters
@@ -268,7 +268,7 @@ class Formatter:
 
 # ---- handler wiring ------------------------------------------------------------------------------
 def register(app: Application, cfg: Config, fmt: Formatter, access: Access) -> None:
-    where = filters.ChatType.PRIVATE | filters.Chat(chat_id=list(cfg.group_chat_ids))
+    where = filters.ChatType.PRIVATE | filters.ChatType.GROUPS  # which groups are allowed is checked by guard()
 
     async def guard(update: Update) -> bool:
         user, chat = update.effective_user, update.effective_chat
@@ -306,9 +306,59 @@ def register(app: Application, cfg: Config, fmt: Formatter, access: Access) -> N
     async def format_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         msg = update.effective_message
         extra = parse_format(msg.text or msg.caption, msg.get_bot().username)
-        if extra is None or not await guard(update):
+        if extra is None:
+            return
+        if not await guard(update):
+            chat = update.effective_chat
+            if chat.type != chat.PRIVATE and cfg.is_owner(update.effective_user.id):
+                await msg.reply_text(texts.AUTH_FIRST)
             return
         await fmt.on_format(msg, extra)
+
+    async def auth(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+        msg, chat, user = update.effective_message, update.effective_chat, update.effective_user
+        if not cfg.is_owner(user.id):
+            await msg.reply_text(texts.AUTH_OWNER_ONLY)
+            return
+        if chat.type == chat.PRIVATE:
+            await msg.reply_text(texts.AUTH_IN_GROUP)
+            return
+        bot = msg.get_bot()
+        try:
+            member = await bot.get_chat_member(chat.id, bot.id)
+        except TelegramError as e:
+            log.warning("could not check my admin rights: %s", e)
+            await msg.reply_text(texts.AUTH_NOT_ADMIN)
+            return
+        if member.status not in (ChatMember.ADMINISTRATOR, ChatMember.OWNER):
+            await msg.reply_text(texts.AUTH_NOT_ADMIN)
+            return
+        await access.authorize(chat.id, chat.title or "", user.id)
+        await msg.reply_text(texts.AUTH_OK, parse_mode=ParseMode.HTML)
+
+    async def unauth(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+        msg, chat, user = update.effective_message, update.effective_chat, update.effective_user
+        if not cfg.is_owner(user.id):
+            await msg.reply_text(texts.AUTH_OWNER_ONLY)
+            return
+        if chat.type == chat.PRIVATE:
+            await msg.reply_text(texts.AUTH_IN_GROUP)
+            return
+        result = await access.revoke(chat.id)
+        await msg.reply_text({"removed": texts.UNAUTH_OK, "env": texts.UNAUTH_ENV,
+                              "missing": texts.UNAUTH_MISSING}[result])
+
+    async def list_groups(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+        if not cfg.is_owner(update.effective_user.id):
+            return
+        lines = [texts.GROUP_LINE.format(title=h(title), cid=cid) for cid, title in access.listing()]
+        await update.effective_message.reply_text(
+            texts.GROUPS.format(groups="\n".join(lines)) if lines else texts.GROUPS_EMPTY, parse_mode=ParseMode.HTML)
+
+    async def migrated(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+        msg = update.effective_message
+        if msg.migrate_to_chat_id:
+            await access.migrate(msg.chat_id, msg.migrate_to_chat_id)
 
     async def plain(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         """Messages without /format: only edit instructions. In the group everything else is ignored."""
@@ -329,7 +379,11 @@ def register(app: Application, cfg: Config, fmt: Formatter, access: Access) -> N
     app.add_handler(CommandHandler("id", my_id))
     app.add_handler(CommandHandler("cancel", cancel, filters=where))
     app.add_handler(CommandHandler(["wallet", "usage"], wallet, filters=filters.ChatType.PRIVATE))
+    app.add_handler(CommandHandler("groups", list_groups, filters=filters.ChatType.PRIVATE))
+    app.add_handler(CommandHandler("auth", auth, filters=where))
+    app.add_handler(CommandHandler("unauth", unauth, filters=where))
     is_format = filters.Regex(_FORMAT) | filters.CaptionRegex(_FORMAT)
     app.add_handler(MessageHandler(where & is_format, format_cmd))
     app.add_handler(MessageHandler(where & ~filters.COMMAND & ~filters.StatusUpdate.ALL, plain))
+    app.add_handler(MessageHandler(filters.StatusUpdate.MIGRATE, migrated))
     app.add_handler(CallbackQueryHandler(button))

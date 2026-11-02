@@ -20,11 +20,11 @@ async def test_text_post_full_flow(fmt, bot, claude):
     await send(fmt, text_msg(OWNER, "/format india ne aaj chandrayaan 5 launch kiya, 3 baje", bot))
     did = await _draft_id(fmt)
     call = claude.calls[-1]
-    assert call["model"] == "claude-opus-5-5"
+    assert call["model"] == "claude-haiku-5-5"
     assert "English" in call["system"] and "▪️" in call["system"]
     assert "chandrayaan 5" in claude.prompt()
     assert call["output_config"] == {"effort": "low"}
-    assert call["fallbacks"] == "default" and call["betas"] == ["server-side-fallback-2026-07-01"]
+    assert "fallbacks" not in call  # Haiku has no server-side fallback
     preview = bot.of("send_message")[-1]
     assert preview["text"] == "<b>🇮🇳 Chandrayaan 5 launched</b>\n\n▪️ India launched it today at 3 pm"
     assert last_markup_data(bot) == [f"re:{did}", f"ed:{did}", f"ok:{did}", f"x:{did}"]
@@ -212,7 +212,7 @@ async def test_handlers_access_rules(cfg, fmt, bot, access):
 
     # other group: ignored silently
     n = len(bot.calls)
-    await content(upd(OWNER, "hello", chat_id=OTHER_GROUP), None)
+    await content(upd(STRANGER, "hello", chat_id=OTHER_GROUP), None)
     assert await fmt.db.drafts.count_documents({}) == 2 and len(bot.calls) == n
 
     # /id shows the group chat id (works anywhere, so the owner can find the id)
@@ -225,3 +225,58 @@ def test_post_html_bolds_only_the_heading():
 
     assert post_html("🇮🇳 A < B\n\n▪️ x & y") == "<b>🇮🇳 A &lt; B</b>\n\n▪️ x &amp; y"
     assert post_html("Only heading") == "<b>Only heading</b>"
+
+
+async def test_auth_command(cfg, fmt, bot, access):
+    from types import SimpleNamespace
+
+    from telegram import Update
+    from telegram.ext import Application, CommandHandler, MessageHandler
+
+    from bot.handlers import register
+    from tests.conftest import OTHER_GROUP, STRANGER
+
+    app = Application.builder().token("123:TEST").build()
+    register(app, cfg, fmt, access)
+    cmds = {n: h.callback for h in app.handlers[0] if isinstance(h, CommandHandler) for n in h.commands}
+    content = next(h for h in app.handlers[0] if isinstance(h, MessageHandler)).callback
+    ctx = SimpleNamespace(args=[])
+
+    def upd(uid, text, chat_id=OTHER_GROUP):
+        return Update(update_id=1, message=text_msg(uid, text, bot, chat_id=chat_id))
+
+    def last():
+        return bot.of("send_message")[-1]["text"]
+
+    # before /auth: members are ignored, the owner gets a hint
+    n = len(bot.calls)
+    await content(upd(STRANGER, "/format news"), None)
+    assert len(bot.calls) == n and await fmt.db.drafts.count_documents({}) == 0
+    await content(upd(OWNER, "/format news"), None)
+    assert "/auth" in last() and await fmt.db.drafts.count_documents({}) == 0
+
+    # only the owner, only inside a group, only when the bot is an admin
+    await cmds["auth"](upd(STRANGER, "/auth"), ctx)
+    assert "Only the bot owner" in last()
+    await cmds["auth"](upd(OWNER, "/auth", chat_id=None), ctx)
+    assert "inside the group" in last()
+    bot.member_status = "member"
+    await cmds["auth"](upd(OWNER, "/auth"), ctx)
+    assert "admin" in last() and OTHER_GROUP not in access.authed
+
+    bot.member_status = "administrator"
+    await cmds["auth"](upd(OWNER, "/auth"), ctx)
+    assert "authorized" in last() and OTHER_GROUP in access.authed
+    assert await fmt.db.db["groups"].count_documents({"_id": OTHER_GROUP}) == 1
+    await content(upd(STRANGER, "/format news"), None)
+    assert await fmt.db.drafts.count_documents({}) == 1  # any member can use it now
+
+    await cmds["groups"](upd(OWNER, "/groups", chat_id=None), ctx)
+    assert f"<code>{OTHER_GROUP}</code>" in last()
+
+    await cmds["unauth"](upd(STRANGER, "/unauth"), ctx)
+    assert OTHER_GROUP in access.authed
+    await cmds["unauth"](upd(OWNER, "/unauth"), ctx)
+    assert OTHER_GROUP not in access.authed
+    await content(upd(STRANGER, "/format news"), None)
+    assert await fmt.db.drafts.count_documents({}) == 1

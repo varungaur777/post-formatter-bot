@@ -8,7 +8,7 @@ BOT_COMMANDS = [
     ("id", "Show your user ID / this group's chat ID"),
 ]
 # shown only in the owner's private chat
-OWNER_COMMANDS = [("wallet", "How much the bot has spent on Claude")]
+OWNER_COMMANDS = [("wallet", "How much the bot has spent on Claude"), ("groups", "List authorized groups")]
 
 HELP = (
     "<b>Post Formatter</b>\n\n"
@@ -57,4 +57,16 @@ WALLET = (
     "Model: <code>{model}</code> · ₹ at {rate:g} per $\n"
     "Exact bill and remaining balance: platform.claude.com → Billing"
 )
-WALLET_LINE = "<b>{label}:</b> ${usd:.3f} (≈ ₹{inr:.0f}) · {posts} posts · {calls} AI requests"
+WALLET_LINE = "<b>{label}:</b> ${usd:.4f} (≈ ₹{inr:.2f}) · {posts} posts · {calls} AI requests"
+
+AUTH_OK = "✅ This group is authorized. Members can now use <code>/format</code> here."
+AUTH_NOT_ADMIN = "Make me an admin of this group first, then send /auth again."
+AUTH_OWNER_ONLY = "Only the bot owner can do this. (If that's you, turn off \"Remain anonymous\" in your admin rights.)"
+AUTH_IN_GROUP = "Send this command inside the group."
+AUTH_FIRST = "This group isn't authorized yet. Make me an admin and send /auth."
+UNAUTH_OK = "This group is no longer authorized."
+UNAUTH_ENV = "This group is set by the GROUP_CHAT_ID secret, so it can't be removed here."
+UNAUTH_MISSING = "This group isn't authorized."
+GROUPS = "<b>Authorized groups</b>\n{groups}"
+GROUPS_EMPTY = "No groups are authorized yet."
+GROUP_LINE = "• {title} <code>{cid}</code>"

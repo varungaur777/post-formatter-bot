@@ -37,6 +37,8 @@ class FakeBot:
         self._next = 1000
         self.defaults = None
         self.username = "TestBot"
+        self.id = 777
+        self.member_status = "administrator"
 
     def _record(self, name: str, kw: dict) -> None:
         self.calls.append((name, kw))
@@ -56,6 +58,10 @@ class FakeBot:
         self._next += 1
         fid = photo if isinstance(photo, str) else f"generated-{self._next}"
         return SimpleNamespace(message_id=self._next, photo=[SimpleNamespace(file_id=fid)])
+
+    async def get_chat_member(self, chat_id: int, user_id: int) -> Any:
+        self._record("get_chat_member", dict(chat_id=chat_id, user_id=user_id))
+        return SimpleNamespace(status=self.member_status)
 
     async def get_file(self, file_id: str) -> Any:
         self._record("get_file", dict(file_id=file_id))
@@ -120,8 +126,8 @@ def claude() -> FakeClaude:
 
 
 @pytest.fixture
-def access(cfg: Config) -> Access:
-    return Access(cfg)
+def access(cfg: Config, db: Database) -> Access:
+    return Access(cfg, db)
 
 
 @pytest.fixture
